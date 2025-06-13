@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       limit: limit,
       scrapeOptions: {
         formats: ['markdown', 'html'],
+        maxAge: 604800, // 1 week in seconds (7 * 24 * 60 * 60)
       }
     }) as {
       success: boolean
