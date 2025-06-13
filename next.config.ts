@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  assetPrefix: 'https://firestarter-cyan.vercel.app',
   images: {
     remotePatterns: [
       {
