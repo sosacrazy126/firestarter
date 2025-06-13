@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  basePath: '/firestarter-proxy-test',
+  assetPrefix: 'https://tools.firecrawl.dev/firestarter-proxy-test',
   images: {
     remotePatterns: [
       {
