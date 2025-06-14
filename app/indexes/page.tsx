@@ -1,49 +1,46 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Globe, FileText, Database, ExternalLink, Trash2, Calendar } from 'lucide-react'
 import { toast } from "sonner"
+import { useStorage } from "@/hooks/useStorage"
 
 interface IndexedSite {
   url: string
   namespace: string
   pagesCrawled: number
-  crawlDate: string
-  metadata: {
-    title: string
-    description: string
+  createdAt: string
+  metadata?: {
+    title?: string
+    description?: string
     favicon?: string
     ogImage?: string
   }
 }
 
+function formatDate(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInMs = now.getTime() - date.getTime()
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+  
+  if (diffInDays === 0) {
+    return 'Today'
+  } else if (diffInDays === 1) {
+    return 'Yesterday'
+  } else if (diffInDays < 7) {
+    return `${diffInDays} days ago`
+  } else {
+    return date.toLocaleDateString()
+  }
+}
+
 export default function IndexesPage() {
   const router = useRouter()
-  const [indexes, setIndexes] = useState<IndexedSite[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    loadIndexes()
-  }, [])
-
-  const loadIndexes = () => {
-    try {
-      const storedIndexes = localStorage.getItem('firestarter_indexes')
-      if (storedIndexes) {
-        const indexes = JSON.parse(storedIndexes) as IndexedSite[]
-        // Sort by crawl date (newest first)
-        indexes.sort((a, b) => new Date(b.crawlDate).getTime() - new Date(a.crawlDate).getTime())
-        setIndexes(indexes)
-      }
-    } catch (e) {
-      console.error('Error loading indexes:', e)
-    }
-    setLoading(false)
-  }
+  const { indexes, loading, deleteIndex, isUsingRedis } = useStorage()
 
   const handleSelectIndex = (index: IndexedSite) => {
     // Store the site info in session storage for the dashboard
@@ -51,31 +48,25 @@ export default function IndexesPage() {
       url: index.url,
       namespace: index.namespace,
       pagesCrawled: index.pagesCrawled,
-      crawlDate: index.crawlDate,
-      metadata: index.metadata,
+      crawlDate: index.createdAt,
+      metadata: index.metadata || {},
       crawlComplete: true,
       fromIndex: true // Flag to indicate this is from the index list
     }
     
     sessionStorage.setItem('firestarter_current_data', JSON.stringify(siteInfo))
     
-    // Navigate to the dashboard
-    router.push('/dashboard')
+    // Navigate to the dashboard with namespace parameter
+    router.push(`/dashboard?namespace=${index.namespace}`)
   }
 
-  const handleDeleteIndex = (index: IndexedSite, e: React.MouseEvent) => {
+  const handleDeleteIndex = async (index: IndexedSite, e: React.MouseEvent) => {
     e.stopPropagation()
     
-    if (confirm(`Delete chatbot for ${index.metadata.title}?`)) {
+    if (confirm(`Delete chatbot for ${index.metadata?.title || index.url}?`)) {
       try {
-        const storedIndexes = localStorage.getItem('firestarter_indexes')
-        if (storedIndexes) {
-          const indexes = JSON.parse(storedIndexes) as IndexedSite[]
-          const filtered = indexes.filter(idx => idx.namespace !== index.namespace)
-          localStorage.setItem('firestarter_indexes', JSON.stringify(filtered))
-        }
+        await deleteIndex(index.namespace)
         toast.success('Chatbot deleted successfully')
-        loadIndexes()
       } catch (e) {
         console.error('Error deleting index:', e)
         toast.error('Failed to delete chatbot')
@@ -110,7 +101,7 @@ export default function IndexesPage() {
           variant="orange"
           size="sm"
         >
-          <Link href="/firestarter">
+          <Link href="/">
             Create New Chatbot
           </Link>
         </Button>
@@ -118,7 +109,10 @@ export default function IndexesPage() {
 
       <div className="mb-8">
         <h1 className="text-3xl font-semibold text-[#36322F] mb-2">Your Chatbots</h1>
-        <p className="text-gray-600">View and manage all your chatbots</p>
+        <p className="text-gray-600">
+          View and manage all your chatbots
+          {isUsingRedis && <span className="text-xs text-gray-500 ml-2">(using Redis storage)</span>}
+        </p>
       </div>
 
       {loading ? (
@@ -147,11 +141,11 @@ export default function IndexesPage() {
               <div className="flex items-stretch">
                 {/* Left side - OG Image */}
                 <div className="relative w-64 flex-shrink-0">
-                  {index.metadata.ogImage ? (
+                  {index.metadata?.ogImage ? (
                     <>
                       <Image 
                         src={index.metadata.ogImage} 
-                        alt={index.metadata.title}
+                        alt={index.metadata?.title || 'Site image'}
                         fill
                         className="object-cover bg-gray-50"
                         onError={(e) => {
@@ -169,7 +163,7 @@ export default function IndexesPage() {
                       <Globe className="w-12 h-12 text-gray-400" />
                     </div>
                   )}
-                  {index.metadata.favicon && (
+                  {index.metadata?.favicon && (
                     <div className="absolute bottom-2 left-2 w-8 h-8 bg-white rounded-lg p-1 shadow-sm">
                       <Image 
                         src={index.metadata.favicon} 
@@ -189,10 +183,10 @@ export default function IndexesPage() {
                 <div className="flex items-start justify-between p-6 flex-1">
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-[#36322F] group-hover:text-orange-600 transition-colors">
-                      {index.metadata.title}
+                      {index.metadata?.title || new URL(index.url).hostname}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">{index.url}</p>
-                    {index.metadata.description && (
+                    {index.metadata?.description && (
                       <p className="text-sm text-gray-500 mt-2 line-clamp-2">
                         {index.metadata.description}
                       </p>
@@ -209,7 +203,7 @@ export default function IndexesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        <span>{formatDate(index.crawlDate)}</span>
+                        <span>{formatDate(index.createdAt)}</span>
                       </div>
                     </div>
                   </div>

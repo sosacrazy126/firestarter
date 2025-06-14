@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Globe, Copy, Check, AlertCircle, FileText, Database, ArrowLeft, ExternalLink } from 'lucide-react'
-// import ReactMarkdown from 'react-markdown'
-// import remarkGfm from 'remark-gfm'
 import Image from 'next/image'
+// Removed useChat - using custom implementation
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -16,16 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { toast } from "sonner"
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  sources?: Array<{
-    url: string
-    title: string
-    snippet: string
-  }>
+interface Source {
+  url: string
+  title: string
+  snippet: string
 }
 
 interface SiteData {
@@ -44,164 +39,221 @@ interface SiteData {
 }
 
 // Simple markdown renderer component
-function MarkdownContent({ content }: { content: string }) {
+function MarkdownContent({ content, onSourceClick, isStreaming = false }: { content: string; onSourceClick?: (index: number) => void; isStreaming?: boolean }) {
   // Simple markdown parsing
   const parseMarkdown = (text: string) => {
+    // First, handle code blocks to prevent other parsing inside them
+    const codeBlocks: string[] = [];
+    let parsed = text.replace(/```([\s\S]*?)```/g, (_, code) => {
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(`<pre class="bg-gray-50 border border-gray-200 p-4 rounded-lg overflow-x-auto my-4 text-sm"><code>${code.trim()}</code></pre>`);
+      return placeholder;
+    });
+    
+    // Handle inline code
+    parsed = parsed.replace(/`([^`]+)`/g, '<code class="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>');
+    
     // Handle links [text](url) - must come before citations
-    let parsed = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-orange-600 hover:text-orange-700 underline">$1</a>');
+    parsed = parsed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-orange-600 hover:text-orange-700 underline">$1</a>');
     
     // Handle citations [1], [2], etc.
-    parsed = parsed.replace(/\[(\d+)\]/g, '<sup class="citation text-orange-600 cursor-pointer hover:text-orange-700">[$1]</sup>');
+    parsed = parsed.replace(/\[(\d+)\]/g, (_, num) => {
+      return `<sup class="citation text-orange-600 cursor-pointer hover:text-orange-700 font-medium" data-citation="${num}">[${num}]</sup>`;
+    });
     
     // Bold text
-    parsed = parsed.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>');
+    parsed = parsed.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>');
     
     // Italic text  
     parsed = parsed.replace(/\*(.+?)\*/g, '<em>$1</em>');
     
-    // Headers
-    parsed = parsed.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mt-4 mb-2">$1</h3>');
-    parsed = parsed.replace(/^## (.+)$/gm, '<h2 class="text-lg font-semibold mt-5 mb-2">$1</h2>');
-    parsed = parsed.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-6 mb-3">$1</h1>');
-    
-    // Handle list blocks
-    const listBlocks = parsed.split('\n');
-    let inList = false;
+    // Split into lines for processing
+    const lines = parsed.split('\n');
     const processedLines = [];
+    let inList = false;
+    let listType = '';
+    let inParagraph = false;
     
-    for (let i = 0; i < listBlocks.length; i++) {
-      const line = listBlocks[i];
-      const isListItem = line.match(/^- (.+)$/) || line.match(/^(\d+)\. (.+)$/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
       
-      if (isListItem && !inList) {
-        processedLines.push('<ul class="space-y-1 my-3">');
-        inList = true;
-      } else if (!isListItem && inList) {
-        processedLines.push('</ul>');
-        inList = false;
+      // Headers
+      if (line.match(/^#{1,3}\s/)) {
+        if (inParagraph) {
+          processedLines.push('</p>');
+          inParagraph = false;
+        }
+        if (line.match(/^###\s(.+)$/)) {
+          processedLines.push(line.replace(/^###\s(.+)$/, '<h3 class="text-base font-semibold mt-4 mb-2 text-gray-900">$1</h3>'));
+        } else if (line.match(/^##\s(.+)$/)) {
+          processedLines.push(line.replace(/^##\s(.+)$/, '<h2 class="text-lg font-semibold mt-5 mb-3 text-gray-900">$1</h2>'));
+        } else if (line.match(/^#\s(.+)$/)) {
+          processedLines.push(line.replace(/^#\s(.+)$/, '<h1 class="text-xl font-bold mt-6 mb-3 text-gray-900">$1</h1>'));
+        }
+        continue;
       }
       
-      if (line.match(/^- (.+)$/)) {
-        processedLines.push(line.replace(/^- (.+)$/, '<li class="ml-5 list-disc">$1</li>'));
-      } else if (line.match(/^(\d+)\. (.+)$/)) {
-        processedLines.push(line.replace(/^(\d+)\. (.+)$/, '<li class="ml-5 list-decimal">$2</li>'));
+      // Lists
+      const bulletMatch = line.match(/^[-*]\s(.+)$/);
+      const numberedMatch = line.match(/^(\d+)\.\s(.+)$/);
+      
+      if (bulletMatch || numberedMatch) {
+        if (inParagraph) {
+          processedLines.push('</p>');
+          inParagraph = false;
+        }
+        
+        const newListType = bulletMatch ? 'ul' : 'ol';
+        if (!inList) {
+          listType = newListType;
+          processedLines.push(`<${listType} class="${listType === 'ul' ? 'list-disc' : 'list-decimal'} ml-6 my-3 space-y-1">`);
+          inList = true;
+        } else if (listType !== newListType) {
+          processedLines.push(`</${listType}>`);
+          listType = newListType;
+          processedLines.push(`<${listType} class="${listType === 'ul' ? 'list-disc' : 'list-decimal'} ml-6 my-3 space-y-1">`);
+        }
+        
+        const content = bulletMatch ? bulletMatch[1] : numberedMatch![2];
+        processedLines.push(`<li class="text-gray-700 leading-relaxed">${content}</li>`);
+        continue;
+      } else if (inList && line === '') {
+        processedLines.push(`</${listType}>`);
+        inList = false;
+        continue;
+      }
+      
+      // Empty lines
+      if (line === '') {
+        if (inParagraph) {
+          processedLines.push('</p>');
+          inParagraph = false;
+        }
+        if (inList) {
+          processedLines.push(`</${listType}>`);
+          inList = false;
+        }
+        continue;
+      }
+      
+      // Regular text - start new paragraph if needed
+      if (!inParagraph && !inList && !line.startsWith('<')) {
+        processedLines.push('<p class="text-gray-700 leading-relaxed mb-3">');
+        inParagraph = true;
+      }
+      
+      // Add line with space if in paragraph
+      if (inParagraph) {
+        processedLines.push(line + (nextLine && !nextLine.match(/^[-*#]|\d+\./) ? ' ' : ''));
       } else {
         processedLines.push(line);
       }
     }
     
+    // Close any open tags
+    if (inParagraph) {
+      processedLines.push('</p>');
+    }
     if (inList) {
-      processedLines.push('</ul>');
+      processedLines.push(`</${listType}>`);
     }
     
     parsed = processedLines.join('\n');
     
-    // Code blocks
-    parsed = parsed.replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto my-3"><code>$1</code></pre>');
-    
-    // Inline code
-    parsed = parsed.replace(/`(.+?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>');
-    
-    // Paragraphs
-    parsed = parsed.split('\n\n').map(para => {
-      if (para.trim() && !para.includes('<h') && !para.includes('<ul') && !para.includes('<pre')) {
-        return `<p class="mb-3">${para}</p>`;
-      }
-      return para;
-    }).join('\n');
-    
-    // Clean up
-    parsed = parsed.replace(/<p class="mb-3"><\/p>/g, '');
-    parsed = parsed.replace(/\n/g, ' ');
+    // Restore code blocks
+    codeBlocks.forEach((block, index) => {
+      parsed = parsed.replace(`__CODE_BLOCK_${index}__`, block);
+    });
     
     return parsed;
   };
 
+  useEffect(() => {
+    // Add click handlers for citations
+    const citations = document.querySelectorAll('.citation');
+    citations.forEach(citation => {
+      citation.addEventListener('click', (e) => {
+        const citationNum = parseInt((e.target as HTMLElement).getAttribute('data-citation') || '0');
+        if (onSourceClick && citationNum > 0) {
+          onSourceClick(citationNum - 1);
+        }
+      });
+    });
+
+    return () => {
+      citations.forEach(citation => {
+        citation.removeEventListener('click', () => {});
+      });
+    };
+  }, [content, onSourceClick]);
+
   return (
-    <div className="text-gray-700">
+    <div className="relative">
       <div 
-        dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }} 
-        className="markdown-content leading-relaxed [&>p]:text-sm [&>ul]:text-sm [&>ol]:text-sm [&_li]:text-sm [&>h1]:text-gray-900 [&>h2]:text-gray-900 [&>h3]:text-gray-900"
+        className="prose prose-sm max-w-none prose-gray prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-code:text-orange-600 prose-code:bg-orange-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-li:text-gray-700 prose-a:text-orange-600 prose-a:no-underline hover:prose-a:underline"
+        dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
       />
+      {isStreaming && (
+        <span className="inline-block w-1 h-4 bg-gray-600 animate-pulse ml-1" />
+      )}
     </div>
   );
 }
 
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [siteData, setSiteData] = useState<SiteData | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [showApiModal, setShowApiModal] = useState(false)
   const [copiedItem, setCopiedItem] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sources?: Source[] }>>([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [showApiModal, setShowApiModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'curl' | 'javascript' | 'python'>('curl')
-  const chatContainerRef = useRef<HTMLDivElement>(null)
-  
-  // Function to scroll to bottom
-  const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
-    }
-  }
-  
-  // Estimate chunks based on pages crawled
-  const totalChunks = Math.round(siteData?.pagesCrawled || 0) * 3 // Estimate 3 chunks per page
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    // First try sessionStorage for current data
-    const currentData = sessionStorage.getItem('firestarter_current_data')
-    if (currentData) {
-      const data = JSON.parse(currentData)
-      setSiteData(data)
-    } else {
-      // No current data, redirect to create new
-      router.push('/firestarter')
-    }
-  }, [router])
-  
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || !siteData) return
 
-    const userMessage: Message = { role: 'user', content: input }
-    setMessages(prev => [...prev, userMessage])
-    const currentInput = input
-    setInput('')
-    setLoading(true)
+    let processedInput = input.trim()
     
-    // Scroll to bottom after adding user message
-    setTimeout(scrollToBottom, 100)
+    // Check if the input looks like a URL without protocol
+    const urlPattern = /^(?!https?:\/\/)([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/
+    if (urlPattern.test(processedInput)) {
+      processedInput = 'https://' + processedInput
+    }
 
-    // Don't add placeholder message, we'll add it when we get the first content
-
+    const userMessage = { role: 'user' as const, content: processedInput }
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setIsLoading(true)
+    
     try {
       const response = await fetch('/api/firestarter/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: currentInput,
+          messages: [userMessage],
           namespace: siteData.namespace,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
           stream: true
         })
       })
 
-      if (!response.body) {
-        throw new Error('No response body')
+      if (!response.ok) {
+        throw new Error('Failed to get response')
       }
 
-      const reader = response.body.getReader()
+      const reader = response.body?.getReader()
       const decoder = new TextDecoder()
-      let streamedContent = ''
-      let sources: Array<{ url: string; title: string; snippet: string }> = []
-      let assistantMessageAdded = false
+      let sources: Source[] = []
+      let content = ''
+      let hasStartedStreaming = false
+
+      if (!reader) throw new Error('No response body')
 
       while (true) {
         const { done, value } = await reader.read()
@@ -211,70 +263,128 @@ export default function DashboardPage() {
         const lines = chunk.split('\n')
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
+          if (line.trim() === '') continue
+          
+          // Handle Vercel AI SDK streaming format
+          if (line.startsWith('0:')) {
+            // Text content chunk
+            const textContent = line.slice(2)
+            if (textContent.startsWith('"') && textContent.endsWith('"')) {
+              const text = JSON.parse(textContent)
+              content += text
               
-              if (data.type === 'sources') {
-                sources = data.sources
-              } else if (data.type === 'content') {
-                streamedContent += data.content
-                
-                // Add assistant message on first content chunk
-                if (!assistantMessageAdded) {
-                  const assistantMessage: Message = {
-                    role: 'assistant',
-                    content: streamedContent,
-                    sources: sources
+              // Add assistant message on first content
+              if (!hasStartedStreaming) {
+                hasStartedStreaming = true
+                setMessages(prev => [...prev, { 
+                  role: 'assistant' as const, 
+                  content: content, 
+                  sources: sources 
+                }])
+              } else {
+                // Update the last message with new content
+                setMessages(prev => {
+                  const newMessages = [...prev]
+                  const lastMessage = newMessages[newMessages.length - 1]
+                  if (lastMessage && lastMessage.role === 'assistant') {
+                    lastMessage.content = content
+                    lastMessage.sources = sources
                   }
-                  setMessages(prev => [...prev, assistantMessage])
-                  assistantMessageAdded = true
-                } else {
-                  // Update existing message
-                  setMessages(prev => {
-                    const newMessages = [...prev]
-                    if (newMessages[newMessages.length - 1].role === 'assistant') {
-                      newMessages[newMessages.length - 1] = {
-                        ...newMessages[newMessages.length - 1],
-                        content: streamedContent,
-                        sources: sources
-                      }
-                    }
-                    return newMessages
-                  })
-                }
-                
-                // Scroll to bottom as content streams in
-                scrollToBottom()
-              } else if (data.type === 'done') {
-                break
-              } else if (data.type === 'error') {
-                throw new Error(data.error)
+                  return newMessages
+                })
               }
-            } catch (parseError) {
-              console.error('Error parsing stream data:', parseError)
+              scrollToBottom()
             }
+          } else if (line.startsWith('8:')) {
+            // Streaming data chunk (sources, etc)
+            try {
+              const jsonStr = line.slice(2)
+              const data = JSON.parse(jsonStr)
+              console.log('[Dashboard] Stream data:', data)
+              
+              if (Array.isArray(data)) {
+                // This might be our sources
+                const sourcesData = data.find(item => item && typeof item === 'object' && 'type' in item && item.type === 'sources')
+                if (sourcesData && sourcesData.sources) {
+                  sources = sourcesData.sources
+                }
+              }
+            } catch (e) {
+              console.log('[Dashboard] Could not parse stream data:', line)
+            }
+          } else if (line.startsWith('e:') || line.startsWith('d:')) {
+            // End metadata - we can ignore these
+            console.log('[Dashboard] Stream ended')
           }
         }
       }
     } catch (error) {
-      console.error('Error:', error)
-      // Add error message
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        sources: []
-      }
-      setMessages(prev => [...prev, errorMessage])
+      console.error('Chat error:', error)
       toast.error('Failed to get response')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    // Get namespace from URL params
+    const namespaceParam = searchParams.get('namespace')
+    console.log('[Dashboard] Loading with namespace:', namespaceParam)
+    
+    if (namespaceParam) {
+      // Try to load data for this specific namespace
+      const storedIndexes = localStorage.getItem('firestarter_indexes')
+      if (storedIndexes) {
+        const indexes = JSON.parse(storedIndexes)
+        const matchingIndex = indexes.find((idx: any) => idx.namespace === namespaceParam)
+        if (matchingIndex) {
+          console.log('[Dashboard] Found matching index:', matchingIndex)
+          setSiteData(matchingIndex)
+          // Also update sessionStorage for consistency
+          sessionStorage.setItem('firestarter_current_data', JSON.stringify(matchingIndex))
+          // Clear messages when namespace changes
+          setMessages([])
+        } else {
+          // Namespace not found in stored indexes
+          router.push('/indexes')
+        }
+      } else {
+        router.push('/indexes')
+      }
+    } else {
+      // Fallback to sessionStorage if no namespace param
+      const data = sessionStorage.getItem('firestarter_current_data')
+      if (data) {
+        const parsedData = JSON.parse(data)
+        setSiteData(parsedData)
+        // Add namespace to URL for consistency
+        router.replace(`/dashboard?namespace=${parsedData.namespace}`)
+      } else {
+        router.push('/indexes')
+      }
+    }
+  }, [router, searchParams])
+
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
     }
   }
 
   const handleDelete = () => {
+    // Remove from localStorage
+    const storedIndexes = localStorage.getItem('firestarter_indexes')
+    if (storedIndexes && siteData) {
+      const indexes = JSON.parse(storedIndexes)
+      const updatedIndexes = indexes.filter((idx: any) => idx.namespace !== siteData.namespace)
+      localStorage.setItem('firestarter_indexes', JSON.stringify(updatedIndexes))
+    }
+    
     sessionStorage.removeItem('firestarter_current_data')
-    router.push('/firestarter')
+    router.push('/indexes')
   }
 
   const copyToClipboard = (text: string, itemId: string) => {
@@ -283,13 +393,17 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedItem(null), 2000)
   }
 
+
   if (!siteData) {
+    console.log('[Dashboard] No siteData, showing loading...')
     return (
       <div className="min-h-screen bg-[#FBFAF9] flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
       </div>
     )
   }
+  
+  console.log('[Dashboard] Rendering with siteData:', siteData)
 
   const modelName = `firecrawl-${siteData.namespace}`
   
@@ -377,7 +491,11 @@ print(data['choices'][0]['message']['content'])`
                   </div>
                 )}
                 <div>
-                  <h1 className="text-xl font-semibold text-[#36322F]">{siteData.metadata.title}</h1>
+                  <h1 className="text-xl font-semibold text-[#36322F]">
+                    {siteData.metadata.title.length > 50 
+                      ? siteData.metadata.title.substring(0, 47) + '...' 
+                      : siteData.metadata.title}
+                  </h1>
                   <p className="text-sm text-gray-600">{siteData.url}</p>
                 </div>
               </div>
@@ -387,7 +505,7 @@ print(data['choices'][0]['message']['content'])`
               onClick={() => setShowDeleteModal(true)}
               variant="outline"
               size="sm"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+              className="text-black hover:text-gray-700 hover:bg-gray-50 border-gray-300"
             >
               Delete
             </Button>
@@ -418,7 +536,11 @@ print(data['choices'][0]['message']['content'])`
               
               <div className="relative z-10 p-6 h-full flex flex-col">
                 <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-[#36322F]">{siteData.metadata.title}</h2>
+                  <h2 className="text-lg font-semibold text-[#36322F]">
+                    {siteData.metadata.title.length > 30 
+                      ? siteData.metadata.title.substring(0, 27) + '...' 
+                      : siteData.metadata.title}
+                  </h2>
                   <p className="text-xs text-gray-600">Knowledge Base</p>
                 </div>
                 
@@ -436,7 +558,7 @@ print(data['choices'][0]['message']['content'])`
                       <Database className="w-4 h-4" />
                       <span className="text-sm font-medium">Chunks</span>
                     </div>
-                    <span className="text-lg font-semibold text-[#36322F]">{totalChunks}</span>
+                    <span className="text-lg font-semibold text-[#36322F]">{Math.round(siteData.pagesCrawled * 3)}</span>
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -483,7 +605,7 @@ print(data['choices'][0]['message']['content'])`
             <div className="flex gap-6 h-full">
               {/* Chat Panel */}
               <div className="w-2/3 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden h-full">
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6">
+                <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6">
                   {messages.length === 0 && (
                     <div className="text-center py-20">
                       <div className="mb-4">
@@ -512,69 +634,82 @@ print(data['choices'][0]['message']['content'])`
                   {messages.map((message, index) => (
               <div
                 key={index}
-                className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}
+                className={`mb-6 ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}
               >
-                <div
-                  className={`inline-block max-w-[80%] px-4 py-3 rounded-2xl ${
-                    message.role === 'user'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <p>{message.content}</p>
-                  ) : (
-                    <div className="prose prose-sm max-w-none">
-                      <MarkdownContent content={message.content} />
-                    </div>
-                  )}
-                  
-                  {message.sources && message.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-300">
-                      <p className="text-xs font-medium text-gray-700 mb-2 flex items-center gap-1">
-                        <ExternalLink className="w-3 h-3" />
-                        Sources ({message.sources.length})
-                      </p>
-                      <div className="space-y-1">
-                        {message.sources.slice(0, 3).map((source, idx) => (
-                          <a
-                            key={idx}
-                            href={source.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block p-2 bg-white/50 rounded hover:bg-white/70 transition-colors group"
-                          >
-                            <p className="text-xs font-medium text-gray-800 group-hover:text-orange-600 truncate">
-                              {source.title}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate mt-0.5">
+                <div className={`max-w-[85%] ${message.role === 'user' ? 'ml-12' : 'mr-12'}`}>
+                  <div
+                    className={`px-5 py-4 rounded-2xl ${
+                      message.role === 'user'
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
+                    }`}
+                  >
+                    {message.role === 'user' ? (
+                      <p className="text-[15px] leading-relaxed">{message.content}</p>
+                    ) : (
+                      <div className="prose prose-sm max-w-none prose-gray">
+                        <MarkdownContent 
+                          content={message.content} 
+                          isStreaming={isLoading && index === messages.length - 1 && message.content !== ''}
+                        />
+                      </div>
+                    )}
+                  </div>
+                
+                  {/* Sources displayed below the message bubble */}
+                  {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
+                  <div className="mt-4 ml-2">
+                    <p className="text-xs font-medium text-gray-600 mb-3">References:</p>
+                    <div className="grid grid-cols-1 gap-2 max-w-2xl">
+                      {message.sources.map((source, idx) => (
+                        <a
+                          key={idx}
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-gray-300 transition-all group"
+                        >
+                          <span className="text-xs font-medium text-gray-500 mt-0.5">[{idx + 1}]</span>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">
+                              {source.title.length > 60 
+                                ? source.title.substring(0, 57) + '...' 
+                                : source.title}
+                            </h4>
+                            {source.snippet && (
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                {source.snippet.length > 100 
+                                  ? source.snippet.substring(0, 97) + '...' 
+                                  : source.snippet}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1 truncate">
                               {source.url}
                             </p>
-                          </a>
-                        ))}
-                        {message.sources.length > 3 && (
-                          <p className="text-xs text-gray-500 italic">
-                            +{message.sources.length - 3} more sources
-                          </p>
-                        )}
-                      </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-600 flex-shrink-0 mt-0.5" />
+                        </a>
+                      ))}
                     </div>
+                  </div>
                   )}
                 </div>
               </div>
               ))}
               
-              {loading && (
-                <div className="text-left mb-4">
-                  <div className="inline-block px-3 py-2 bg-gray-100 rounded-2xl">
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce" />
-                      <div className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce delay-100" />
-                      <div className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce delay-200" />
+              {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+                <div className="flex justify-start mb-6">
+                  <div className="max-w-[85%] mr-12">
+                    <div className="px-5 py-4 rounded-2xl bg-white border border-gray-200 text-gray-800 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse delay-75" />
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse delay-150" />
+                      </div>
                     </div>
                   </div>
                 </div>
-                  )}
+              )}
                 </div>
                 
                 <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
@@ -585,11 +720,11 @@ print(data['choices'][0]['message']['content'])`
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={`Ask about ${siteData.metadata.title}...`}
                       className="w-full pr-12 placeholder:text-gray-400"
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                     <button
                       type="submit"
-                      disabled={loading || !input.trim()}
+                      disabled={isLoading || !input.trim()}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-600 hover:text-orange-700 disabled:opacity-50 transition-colors"
                     >
                       <Send className="w-4 h-4" />
@@ -617,7 +752,7 @@ print(data['choices'][0]['message']['content'])`
                       <div className="space-y-2 text-left">
                         <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
                           <span className="text-xs text-gray-600">Total chunks</span>
-                          <span className="text-xs font-medium text-gray-800">{totalChunks}</span>
+                          <span className="text-xs font-medium text-gray-800">{Math.round(siteData.pagesCrawled * 3)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
                           <span className="text-xs text-gray-600">Crawl date</span>
@@ -640,32 +775,26 @@ print(data['choices'][0]['message']['content'])`
           </div>
         </div>
       </div>
-
-      {/* Delete Modal */}
+      
+      {/* Delete Confirmation Modal */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="sm:max-w-md bg-white">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              Delete Site Index?
-            </DialogTitle>
+            <DialogTitle>Delete Index</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the index for {siteData.metadata.title}? 
-              This will remove all crawled data and cannot be undone.
+              Are you sure you want to delete the index for {siteData.metadata.title}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowDeleteModal(false)}
-              className="px-6"
             >
               Cancel
             </Button>
             <Button
-              onClick={handleDelete}
               variant="destructive"
-              className="px-6"
+              onClick={handleDelete}
             >
               Delete
             </Button>

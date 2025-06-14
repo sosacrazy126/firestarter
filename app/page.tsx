@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useStorage } from "@/hooks/useStorage";
 import { 
   Globe, 
   ArrowRight, 
@@ -35,8 +36,10 @@ export default function FirestarterPage() {
   const router = useRouter();
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const urlParam = searchParams.get('url');
+  const { saveIndex } = useStorage();
   
   const [url, setUrl] = useState(urlParam || 'https://firecrawl.dev');
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [pageLimit, setPageLimit] = useState(10);
@@ -231,29 +234,23 @@ export default function FirestarterPage() {
         // Store only metadata for current session (no crawlData - that's in Upstash)
         sessionStorage.setItem('firestarter_current_data', JSON.stringify(siteInfo));
         
-        // Store only metadata for the index list
-        const indexMetadata = siteInfo;
-        
-        // Store in indexes list
-        const existingIndexes = JSON.parse(localStorage.getItem('firestarter_indexes') || '[]');
-        existingIndexes.push(indexMetadata);
-        // Keep only last 50 indexes to prevent quota issues
-        if (existingIndexes.length > 50) {
-          existingIndexes.shift();
-        }
-        try {
-          localStorage.setItem('firestarter_indexes', JSON.stringify(existingIndexes));
-        } catch {
-          // If storage fails, remove oldest entries and try again
-          if (existingIndexes.length > 10) {
-            const trimmedIndexes = existingIndexes.slice(-10); // Keep only last 10
-            localStorage.setItem('firestarter_indexes', JSON.stringify(trimmedIndexes));
+        // Save index metadata using the storage hook
+        await saveIndex({
+          url: normalizedUrl,
+          namespace: data.namespace,
+          pagesCrawled: data.details?.pagesCrawled || 0,
+          createdAt: new Date().toISOString(),
+          metadata: {
+            title: homepageMetadata.ogTitle || homepageMetadata.title || new URL(normalizedUrl).hostname,
+            description: homepageMetadata.ogDescription || homepageMetadata.description || 'Your custom website',
+            favicon: homepageMetadata.favicon,
+            ogImage: homepageMetadata.ogImage || homepageMetadata['og:image'] || homepageMetadata['twitter:image']
           }
-        }
+        });
         
         // Small delay to show completion
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(`/dashboard?namespace=${siteInfo.namespace}`);
         }, 1000);
       } else if (data && 'error' in data) {
         setCrawlProgress({
@@ -425,9 +422,18 @@ export default function FirestarterPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Input
-                  type="url"
+                  type="text"
                   value={url}
-                  onChange={(e) => setUrl(e.target.value)}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    setHasInteracted(true);
+                  }}
+                  onFocus={() => {
+                    if (!hasInteracted && url === 'https://firecrawl.dev') {
+                      setUrl('');
+                      setHasInteracted(true);
+                    }
+                  }}
                   placeholder="https://example.com"
                   className="w-full h-14 px-6 text-lg"
                   required

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import FirecrawlApp from '@mendable/firecrawl-js'
 import { searchIndex } from '@/lib/upstash-search'
+import { saveIndex } from '@/lib/storage'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +13,10 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    const { url, limit = 10 } = await request.json()
+    const { url, limit = 10, includePaths, excludePaths } = await request.json()
     console.log('[FIRESTARTER-CREATE] Received crawl request for URL:', url, 'with limit:', limit)
+    if (includePaths) console.log('[FIRESTARTER-CREATE] Include paths:', includePaths)
+    if (excludePaths) console.log('[FIRESTARTER-CREATE] Exclude paths:', excludePaths)
     
     if (!url) {
       console.error('[FIRESTARTER-CREATE] No URL provided in request')
@@ -43,13 +46,23 @@ export async function POST(request: NextRequest) {
     // Start crawling the website with specified limit
     console.log('[FIRESTARTER-CREATE] Starting crawl for', url, 'with limit of', limit, 'pages')
     
-    const crawlResponse = await firecrawl.crawlUrl(url, {
+    const crawlOptions: any = {
       limit: limit,
       scrapeOptions: {
         formats: ['markdown', 'html'],
         maxAge: 604800, // 1 week in seconds (7 * 24 * 60 * 60)
       }
-    }) as {
+    }
+    
+    // Add include/exclude paths if provided
+    if (includePaths && Array.isArray(includePaths) && includePaths.length > 0) {
+      crawlOptions.includePaths = includePaths
+    }
+    if (excludePaths && Array.isArray(excludePaths) && excludePaths.length > 0) {
+      crawlOptions.excludePaths = excludePaths
+    }
+    
+    const crawlResponse = await firecrawl.crawlUrl(url, crawlOptions) as {
       success: boolean
       data: Array<{
         url?: string
@@ -101,16 +114,14 @@ export async function POST(request: NextRequest) {
       const url = page.metadata?.sourceURL || page.url || ''
       const description = page.metadata?.description || page.metadata?.ogDescription || ''
       
-      // Create a searchable text that includes URL, title, description and content
-      // This ensures all important fields are searchable
-      const searchableText = `URL: ${url}\nTitle: ${title}\nDescription: ${description}\n\n${fullContent}`.substring(0, 1200)
+      // Create a searchable text - include namespace for better search filtering
+      // The limit is 1500 chars for the whole content object when stringified
+      const searchableText = `namespace:${namespace} ${title} ${description} ${fullContent}`.substring(0, 1000)
       
       return {
         id: `${namespace}-${index}`,
         content: {
-          text: searchableText,  // The searchable text
-          url: url,             // Include URL in content for searching
-          title: title          // Include title in content for searching
+          text: searchableText  // Content must be an object
         },
         metadata: {
           namespace: namespace,
@@ -121,7 +132,9 @@ export async function POST(request: NextRequest) {
           pageTitle: page.metadata?.title,
           description: page.metadata?.description || page.metadata?.ogDescription,
           favicon: page.metadata?.favicon,
-          ogImage: page.metadata?.ogImage || page.metadata?.['og:image']
+          ogImage: page.metadata?.ogImage || page.metadata?.['og:image'],
+          // Store the full content in metadata for retrieval (not searchable but accessible)
+          fullContent: fullContent.substring(0, 5000) // Store more content here
         }
       }
     })
@@ -193,6 +206,31 @@ export async function POST(request: NextRequest) {
     } catch (upsertError) {
       console.error('[FIRESTARTER-CREATE] Error storing documents in Upstash:', upsertError)
       throw new Error(`Failed to store documents: ${upsertError instanceof Error ? upsertError.message : 'Unknown error'}`)
+    }
+    
+    // Save index metadata to storage
+    const homepage = crawlResponse.data.find((page) => {
+      const pageUrl = page.metadata?.sourceURL || page.url || ''
+      return pageUrl === url || pageUrl === url + '/' || pageUrl === url.replace(/\/$/, '')
+    }) || crawlResponse.data[0]
+    
+    try {
+      await saveIndex({
+        url,
+        namespace,
+        pagesCrawled: crawlResponse.data?.length || 0,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          title: homepage?.metadata?.title,
+          description: homepage?.metadata?.description || homepage?.metadata?.ogDescription,
+          favicon: homepage?.metadata?.favicon,
+          ogImage: homepage?.metadata?.ogImage || homepage?.metadata?.['og:image']
+        }
+      })
+      console.log('[FIRESTARTER-CREATE] Successfully saved index metadata')
+    } catch (storageError) {
+      console.error('[FIRESTARTER-CREATE] Error saving index metadata:', storageError)
+      // Continue execution - storage error shouldn't fail the entire operation
     }
     
     return NextResponse.json({
