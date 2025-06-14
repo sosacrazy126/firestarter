@@ -2,18 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import FirecrawlApp from '@mendable/firecrawl-js'
 import { searchIndex } from '@/lib/upstash-search'
 import { saveIndex } from '@/lib/storage'
+import { serverConfig as config } from '@/firestarter.config'
 
 export async function POST(request: NextRequest) {
   try {
     // Check if creation is disabled
-    if (process.env.FIRESTARTER_DISABLE_CREATION_DASHBOARD === 'true') {
-      console.log('[FIRESTARTER-CREATE] Creation is disabled via FIRESTARTER_DISABLE_CREATION_DASHBOARD')
+    if (!config.features.enableCreation) {
+      console.log('[FIRESTARTER-CREATE] Creation is disabled via configuration')
       return NextResponse.json({ 
         error: 'Dashboard creation is disabled for Firestarter.' 
       }, { status: 403 })
     }
 
-    const { url, limit = 10, includePaths, excludePaths } = await request.json()
+    const { url, limit = config.crawling.defaultLimit, includePaths, excludePaths } = await request.json()
     console.log('[FIRESTARTER-CREATE] Received crawl request for URL:', url, 'with limit:', limit)
     if (includePaths) console.log('[FIRESTARTER-CREATE] Include paths:', includePaths)
     if (excludePaths) console.log('[FIRESTARTER-CREATE] Exclude paths:', excludePaths)
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       limit: limit,
       scrapeOptions: {
         formats: ['markdown', 'html'] as ('markdown' | 'html')[],
-        maxAge: 604800, // 1 week in seconds (7 * 24 * 60 * 60)
+        maxAge: config.crawling.cacheMaxAge, // Use config value
       },
       includePaths: undefined as string[] | undefined,
       excludePaths: undefined as string[] | undefined

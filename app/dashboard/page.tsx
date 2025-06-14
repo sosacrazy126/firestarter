@@ -211,7 +211,7 @@ function DashboardContent() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showApiModal, setShowApiModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'curl' | 'javascript' | 'python'>('curl')
+  const [activeTab, setActiveTab] = useState<'curl' | 'javascript' | 'python' | 'openai-js' | 'openai-python'>('curl')
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Handle form submission
@@ -265,6 +265,8 @@ function DashboardContent() {
         for (const line of lines) {
           if (line.trim() === '') continue
           
+          console.log('[Dashboard] Processing line:', line.substring(0, 50) + '...')
+          
           // Handle Vercel AI SDK streaming format
           if (line.startsWith('0:')) {
             // Text content chunk
@@ -297,20 +299,41 @@ function DashboardContent() {
             }
           } else if (line.startsWith('8:')) {
             // Streaming data chunk (sources, etc)
+            console.log('[Dashboard] Received 8: line:', line)
             try {
               const jsonStr = line.slice(2)
               const data = JSON.parse(jsonStr)
-              console.log('[Dashboard] Stream data:', data)
+              console.log('[Dashboard] Parsed stream data:', data)
               
-              if (Array.isArray(data)) {
-                // This might be our sources
+              // Check if this is the sources data
+              if (data && typeof data === 'object' && 'sources' in data) {
+                sources = data.sources
+                console.log('[Dashboard] Found sources:', sources)
+                console.log('[Dashboard] Sources count:', sources.length)
+                
+                // Update the last message with sources
+                setMessages(prev => {
+                  const newMessages = [...prev]
+                  const lastMessage = newMessages[newMessages.length - 1]
+                  console.log('[Dashboard] Updating last message:', lastMessage?.role)
+                  if (lastMessage && lastMessage.role === 'assistant') {
+                    lastMessage.sources = sources
+                    console.log('[Dashboard] Updated message with sources')
+                  }
+                  return newMessages
+                })
+              } else if (Array.isArray(data)) {
+                // Legacy format support
+                console.log('[Dashboard] Checking legacy format')
                 const sourcesData = data.find(item => item && typeof item === 'object' && 'type' in item && item.type === 'sources')
                 if (sourcesData && sourcesData.sources) {
                   sources = sourcesData.sources
+                  console.log('[Dashboard] Found sources in legacy format:', sources)
                 }
               }
-            } catch {
-              console.log('[Dashboard] Could not parse stream data:', line)
+            } catch (e) {
+              console.error('[Dashboard] Error parsing stream data:', e)
+              console.log('[Dashboard] Raw line that failed:', line)
             }
           } else if (line.startsWith('e:') || line.startsWith('d:')) {
             // End metadata - we can ignore these
@@ -407,11 +430,17 @@ function DashboardContent() {
 
   const modelName = `firecrawl-${siteData.namespace}`
   
-  // Check if we're in development mode
-  const isDev = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')
-  const apiUrl = isDev ? 'http://localhost:3001/api/v1/chat/completions' : 'https://tools.firecrawl.dev/api/v1/chat/completions'
+  // Get dynamic API URL based on current location
+  const getApiUrl = () => {
+    if (typeof window === 'undefined') return 'http://localhost:3001/api/v1/chat/completions'
+    const protocol = window.location.protocol
+    const host = window.location.host
+    return `${protocol}//${host}/api/v1/chat/completions`
+  }
+  const apiUrl = getApiUrl()
   
-  const curlCommand = `curl ${apiUrl} \\
+  const curlCommand = `# Standard request
+curl ${apiUrl} \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_FIRESTARTER_API_KEY" \\
   -d '{
@@ -419,7 +448,79 @@ function DashboardContent() {
     "messages": [
       {"role": "user", "content": "Your question here"}
     ]
+  }'
+
+# Streaming request (SSE format)
+curl ${apiUrl} \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_FIRESTARTER_API_KEY" \\
+  -H "Accept: text/event-stream" \\
+  -N \\
+  -d '{
+    "model": "${modelName}",
+    "messages": [
+      {"role": "user", "content": "Your question here"}
+    ],
+    "stream": true
   }'`
+  
+  const openaiJsCode = `import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: 'YOUR_FIRESTARTER_API_KEY',
+  baseURL: '${apiUrl.replace('/chat/completions', '')}',
+});
+
+const completion = await openai.chat.completions.create({
+  model: '${modelName}',
+  messages: [
+    { role: 'user', content: 'Your question here' }
+  ],
+});
+
+console.log(completion.choices[0].message.content);
+
+// Streaming example
+const stream = await openai.chat.completions.create({
+  model: '${modelName}',
+  messages: [
+    { role: 'user', content: 'Your question here' }
+  ],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || '');
+}`
+  
+  const openaiPythonCode = `from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_FIRESTARTER_API_KEY",
+    base_url="${apiUrl.replace('/chat/completions', '')}"
+)
+
+completion = client.chat.completions.create(
+    model="${modelName}",
+    messages=[
+        {"role": "user", "content": "Your question here"}
+    ]
+)
+
+print(completion.choices[0].message.content)
+
+# Streaming example
+stream = client.chat.completions.create(
+    model="${modelName}",
+    messages=[
+        {"role": "user", "content": "Your question here"}
+    ],
+    stream=True
+)
+
+for chunk in stream:
+    if chunk.choices[0].delta.content is not None:
+        print(chunk.choices[0].delta.content, end="")`
   
   const jsCode = `// Using fetch API
 const response = await fetch('${apiUrl}', {
@@ -503,9 +604,8 @@ print(data['choices'][0]['message']['content'])`
             
             <Button
               onClick={() => setShowDeleteModal(true)}
-              variant="outline"
+              variant="code"
               size="sm"
-              className="text-black hover:text-gray-700 hover:bg-gray-50 border-gray-300"
             >
               Delete
             </Button>
@@ -514,9 +614,9 @@ print(data['choices'][0]['message']['content'])`
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6 h-[600px]">
-          {/* Stats Cards */}
-          <div className="lg:w-1/4 flex flex-col gap-4 h-full">
+        <div className="flex flex-col lg:flex-row gap-6 lg:h-[600px]">
+          {/* Stats Cards - Show at top on mobile */}
+          <div className="lg:w-1/4 flex flex-col gap-4 lg:h-full">
             <div className="relative bg-white rounded-xl border border-gray-200 overflow-hidden flex-1">
               {/* OG Image Background */}
               {siteData.metadata.ogImage && (
@@ -600,12 +700,12 @@ print(data['choices'][0]['message']['content'])`
             </div>
           </div>
 
-          {/* Chat Panel and Sources */}
-          <div className="lg:w-3/4 h-full">
-            <div className="flex gap-6 h-full">
+          {/* Chat Panel and Sources - Show below on mobile */}
+          <div className="lg:w-3/4 lg:h-full">
+            <div className="flex flex-col lg:flex-row gap-6 lg:h-full">
               {/* Chat Panel */}
-              <div className="w-2/3 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden h-full">
-                <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6">
+              <div className="w-full lg:w-2/3 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden h-[500px] lg:h-full">
+                <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6 pb-0">
                   {messages.length === 0 && (
                     <div className="text-center py-20">
                       <div className="mb-4">
@@ -656,43 +756,6 @@ print(data['choices'][0]['message']['content'])`
                     )}
                   </div>
                 
-                  {/* Sources displayed below the message bubble */}
-                  {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
-                  <div className="mt-4 ml-2">
-                    <p className="text-xs font-medium text-gray-600 mb-3">References:</p>
-                    <div className="grid grid-cols-1 gap-2 max-w-2xl">
-                      {message.sources.map((source, idx) => (
-                        <a
-                          key={idx}
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-start gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-gray-300 transition-all group"
-                        >
-                          <span className="text-xs font-medium text-gray-500 mt-0.5">[{idx + 1}]</span>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">
-                              {source.title.length > 60 
-                                ? source.title.substring(0, 57) + '...' 
-                                : source.title}
-                            </h4>
-                            {source.snippet && (
-                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                {source.snippet.length > 100 
-                                  ? source.snippet.substring(0, 97) + '...' 
-                                  : source.snippet}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-500 mt-1 truncate">
-                              {source.url}
-                            </p>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-600 flex-shrink-0 mt-0.5" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                  )}
                 </div>
               </div>
               ))}
@@ -711,6 +774,47 @@ print(data['choices'][0]['message']['content'])`
                 </div>
               )}
                 </div>
+                
+                {/* Sources section - fixed at bottom */}
+                {messages.length > 0 && (() => {
+                  const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
+                  console.log('[Dashboard] Checking for sources to display')
+                  console.log('[Dashboard] Last assistant message:', lastAssistantMessage)
+                  console.log('[Dashboard] Sources in last message:', lastAssistantMessage?.sources)
+                  return lastAssistantMessage?.sources && lastAssistantMessage.sources.length > 0 ? (
+                    <div className="border-t border-gray-200 bg-gray-50 max-h-[250px] overflow-y-auto">
+                      <div className="p-4">
+                        <p className="text-xs font-medium text-gray-700 mb-3">Sources</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {lastAssistantMessage.sources.map((source, idx) => (
+                            <a
+                              key={idx}
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-2 p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-gray-300 transition-all group"
+                            >
+                              <span className="text-xs font-medium text-gray-500 flex-shrink-0">[{idx + 1}]</span>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-xs font-medium text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2">
+                                  {source.title}
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-1 truncate">
+                                  {new URL(source.url).hostname}
+                                </p>
+                              </div>
+                              <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-blue-600 flex-shrink-0" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-500">
+                      <p>No sources available for this response</p>
+                    </div>
+                  )
+                })()}
                 
                 <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
                   <div className="relative">
@@ -733,8 +837,8 @@ print(data['choices'][0]['message']['content'])`
                 </form>
               </div>
               
-              {/* Sources Panel */}
-              <div className="w-1/3">
+              {/* Sources Panel - Hidden on mobile, show on desktop */}
+              <div className="hidden lg:block lg:w-1/3">
                 <div className="bg-white rounded-xl p-6 border border-gray-200 flex flex-col h-full">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-[#36322F]">Knowledge Base</h2>
@@ -778,22 +882,22 @@ print(data['choices'][0]['message']['content'])`
       
       {/* Delete Confirmation Modal */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md bg-white z-50">
           <DialogHeader>
             <DialogTitle>Delete Index</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete the index for {siteData.metadata.title}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex gap-2">
             <Button
-              variant="outline"
+              variant="code"
               onClick={() => setShowDeleteModal(false)}
             >
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant="orange"
               onClick={handleDelete}
             >
               Delete
@@ -804,7 +908,7 @@ print(data['choices'][0]['message']['content'])`
 
       {/* API Modal */}
       <Dialog open={showApiModal} onOpenChange={setShowApiModal}>
-        <DialogContent className="sm:max-w-4xl bg-white">
+        <DialogContent className="sm:max-w-3xl bg-white z-50 max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>API Access</DialogTitle>
             <DialogDescription>
@@ -825,22 +929,42 @@ print(data['choices'][0]['message']['content'])`
           
           {/* Language tabs */}
           <div className="mb-6">
-            <div className="flex gap-1 mb-4 border-b border-gray-200">
+            <div className="flex flex-wrap gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
               <button
                 onClick={() => setActiveTab('curl')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTab === 'curl'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
+                    ? 'bg-white text-orange-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
                 cURL
               </button>
               <button
+                onClick={() => setActiveTab('openai-js')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  activeTab === 'openai-js'
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                OpenAI JS
+              </button>
+              <button
+                onClick={() => setActiveTab('openai-python')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  activeTab === 'openai-python'
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                OpenAI Python
+              </button>
+              <button
                 onClick={() => setActiveTab('javascript')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTab === 'javascript'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
+                    ? 'bg-white text-orange-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
@@ -848,9 +972,9 @@ print(data['choices'][0]['message']['content'])`
               </button>
               <button
                 onClick={() => setActiveTab('python')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTab === 'python'
-                    ? 'text-orange-600 border-b-2 border-orange-600'
+                    ? 'bg-white text-orange-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
@@ -859,31 +983,37 @@ print(data['choices'][0]['message']['content'])`
             </div>
             
             {/* Tab content */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">
+            <div className="bg-gray-900 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-300">
                   {activeTab === 'curl' && 'cURL Command'}
-                  {activeTab === 'javascript' && 'JavaScript Code'}
-                  {activeTab === 'python' && 'Python Code'}
+                  {activeTab === 'javascript' && 'JavaScript (Fetch API)'}
+                  {activeTab === 'python' && 'Python (Requests)'}
+                  {activeTab === 'openai-js' && 'OpenAI SDK for JavaScript'}
+                  {activeTab === 'openai-python' && 'OpenAI SDK for Python'}
                 </span>
                 <button
                   onClick={() => copyToClipboard(
                     activeTab === 'curl' ? curlCommand : 
                     activeTab === 'javascript' ? jsCode : 
-                    pythonCode, 
+                    activeTab === 'python' ? pythonCode :
+                    activeTab === 'openai-js' ? openaiJsCode :
+                    openaiPythonCode, 
                     activeTab
                   )}
-                  className="text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
+                  className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1 transition-colors"
                 >
                   {copiedItem === activeTab ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   {copiedItem === activeTab ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <pre className="text-sm text-gray-700 overflow-x-auto whitespace-pre-wrap break-all">
-                <code>
+              <pre className="text-sm text-gray-100 overflow-x-auto">
+                <code className="language-bash">
                   {activeTab === 'curl' && curlCommand}
                   {activeTab === 'javascript' && jsCode}
                   {activeTab === 'python' && pythonCode}
+                  {activeTab === 'openai-js' && openaiJsCode}
+                  {activeTab === 'openai-python' && openaiPythonCode}
                 </code>
               </pre>
             </div>

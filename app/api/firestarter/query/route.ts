@@ -1,7 +1,33 @@
 import { NextRequest } from 'next/server'
-import { groq } from '@ai-sdk/groq'
 import { streamText } from 'ai'
+import { groq } from '@ai-sdk/groq'
+import { openai } from '@ai-sdk/openai'
+import { anthropic } from '@ai-sdk/anthropic'
 import { searchIndex } from '@/lib/upstash-search'
+import { serverConfig as config } from '@/firestarter.config'
+
+// Get AI model at runtime on server
+const getModel = () => {
+  try {
+    // Initialize models directly here to avoid module-level issues
+    if (process.env.GROQ_API_KEY) {
+      console.log('[FIRESTARTER-QUERY] Using Groq model')
+      return groq('meta-llama/llama-4-scout-17b-16e-instruct')
+    }
+    if (process.env.OPENAI_API_KEY) {
+      console.log('[FIRESTARTER-QUERY] Using OpenAI model')
+      return openai('gpt-4o')
+    }
+    if (process.env.ANTHROPIC_API_KEY) {
+      console.log('[FIRESTARTER-QUERY] Using Anthropic model')
+      return anthropic('claude-3-5-sonnet-20241022')
+    }
+    throw new Error('No AI provider configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY')
+  } catch (error) {
+    console.error('[FIRESTARTER-QUERY] Error getting AI model:', error)
+    throw error
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,7 +82,7 @@ export async function POST(request: NextRequest) {
       
       const searchResults = await searchIndex.search({
         query: searchQuery,
-        limit: 100
+        limit: config.search.maxResults
       })
       
       console.log('[FIRESTARTER-QUERY] Initial search found:', searchResults.length, 'results')
@@ -82,7 +108,7 @@ export async function POST(request: NextRequest) {
         
         const fallbackResults = await searchIndex.search({
           query: namespace,
-          limit: 100
+          limit: config.search.maxResults
         })
         
         console.log('[FIRESTARTER-QUERY] Fallback search found:', fallbackResults.length, 'results')
@@ -132,7 +158,7 @@ export async function POST(request: NextRequest) {
       if (stream) {
         // Create a simple text stream for the answer
         const result = await streamText({
-          model: groq('meta-llama/llama-4-scout-17b-16e-instruct'),
+          model: getModel(),
           prompt: answer,
           maxTokens: 1,
           temperature: 0,
@@ -205,7 +231,7 @@ ${rawContent}`
     // Sort by score and take top results
     const relevantDocs = transformedDocuments
       .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 20) // Get many more sources for better coverage
+      .slice(0, config.search.maxSourcesDisplay) // Get many more sources for better coverage
     
     console.log('[FIRESTARTER-QUERY] Found relevant docs:', relevantDocs.length, 'from', transformedDocuments.length, 'total')
     
@@ -213,7 +239,7 @@ ${rawContent}`
     const docsToUse = relevantDocs.length > 0 ? relevantDocs : transformedDocuments.slice(0, 10)
 
     // Build context from relevant documents - use more content for better answers
-    const contextDocs = docsToUse.slice(0, 10) // Use top 10 for richer context
+    const contextDocs = docsToUse.slice(0, config.search.maxContextDocs) // Use top docs for richer context
     
     // Log document structure for debugging
     if (contextDocs.length > 0) {
@@ -232,7 +258,7 @@ ${rawContent}`
           console.warn('[FIRESTARTER-QUERY] Empty content for doc:', doc.url)
           return null
         }
-        return content.substring(0, 1500) + '...'
+        return content.substring(0, config.search.maxContextLength) + '...'
       })
       .filter(Boolean)
       .join('\n\n---\n\n')
@@ -248,7 +274,7 @@ ${rawContent}`
       const sources = docsToUse.map((doc) => ({
         url: doc.url,
         title: doc.title,
-        snippet: (doc.content || '').substring(0, 200) + '...'
+        snippet: (doc.content || '').substring(0, config.search.snippetLength) + '...'
       }))
       
       return new Response(
@@ -261,21 +287,19 @@ ${rawContent}`
     const sources = docsToUse.map((doc) => ({
       url: doc.url,
       title: doc.title,
-      snippet: (doc.content || '').substring(0, 200) + '...'
+      snippet: (doc.content || '').substring(0, config.search.snippetLength) + '...'
     }))
+    
+    console.log('[FIRESTARTER-QUERY] Prepared sources:', sources.length, 'sources')
+    if (sources.length > 0) {
+      console.log('[FIRESTARTER-QUERY] First source:', JSON.stringify(sources[0], null, 2))
+    }
 
     // Generate response using Vercel AI SDK
     try {
       console.log('[FIRESTARTER-QUERY] Calling Groq API...', { streaming: stream })
       
-      const systemPrompt = `You are a helpful assistant that answers questions based ONLY on the provided context from a website. 
-IMPORTANT: You MUST use the information provided in the context below to answer the user's question.
-- Answer questions comprehensively using ONLY the context provided
-- DO NOT use any external knowledge - only what's in the context
-- Use bullet points or numbered lists when appropriate for clarity
-- Cite specific information from the sources when relevant
-- If the context doesn't contain enough information to answer the question, say so explicitly
-- Be concise but thorough`
+      const systemPrompt = config.ai.systemPrompt
 
       const userPrompt = `Question: ${query}\n\nRelevant content from the website:\n${context}\n\nPlease provide a comprehensive answer based on this information.`
 
@@ -289,30 +313,81 @@ IMPORTANT: You MUST use the information provided in the context below to answer 
         console.log(contextDocs[0].content.substring(0, 500) + '...')
       }
 
+
       if (stream) {
-        // Stream the response using Groq with Llama 4 Scout
-        const result = await streamText({
-          model: groq('meta-llama/llama-4-scout-17b-16e-instruct'),
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.7,
-          maxTokens: 800,
+        console.log('[FIRESTARTER-QUERY] Starting streaming response')
+        
+        let result
+        try {
+          const model = getModel()
+          console.log('[FIRESTARTER-QUERY] Model initialized successfully')
+          
+          // Stream the response
+          result = await streamText({
+            model: model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: config.ai.temperature,
+            maxTokens: config.ai.maxTokens
+          })
+          
+          console.log('[FIRESTARTER-QUERY] Stream result created:', !!result)
+        } catch (streamError) {
+          console.error('[FIRESTARTER-QUERY] Streaming error:', streamError)
+          throw streamError
+        }
+        
+        // Create a streaming response with sources
+        console.log('[FIRESTARTER-QUERY] Creating streaming response')
+        console.log('[FIRESTARTER-QUERY] Sources to send:', sources.length)
+        
+        // Always use custom streaming to include sources
+        // The built-in toDataStreamResponse doesn't include our sources
+        const encoder = new TextEncoder()
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            // Send sources as initial data
+            const sourcesData = { sources }
+            const sourcesLine = `8:${JSON.stringify(sourcesData)}\n`
+            console.log('[FIRESTARTER-QUERY] Sending sources line:', sourcesLine)
+            controller.enqueue(encoder.encode(sourcesLine))
+            
+            // Stream the text
+            try {
+              let chunkCount = 0
+              for await (const textPart of result.textStream) {
+                // Format as Vercel AI SDK expects
+                const escaped = JSON.stringify(textPart)
+                controller.enqueue(encoder.encode(`0:${escaped}\n`))
+                chunkCount++
+              }
+              console.log('[FIRESTARTER-QUERY] Streamed', chunkCount, 'text chunks')
+            } catch (error) {
+              console.error('[FIRESTARTER-QUERY] Error in text stream:', error)
+            }
+            
+            controller.close()
+          }
         })
         
-        // Return the stream response with additional data
-        return result.toDataStreamResponse()
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8'
+          }
+        })
       } else {
         // Non-streaming response
         const result = await streamText({
-          model: groq('meta-llama/llama-4-scout-17b-16e-instruct'),
+          model: getModel(),
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          temperature: 0.7,
-          maxTokens: 800
+          temperature: config.ai.temperature,
+          maxTokens: config.ai.maxTokens
         })
         
         // Get the full text

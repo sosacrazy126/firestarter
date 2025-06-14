@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useStorage } from "@/hooks/useStorage";
+import { clientConfig as config } from "@/firestarter.config";
 import { 
   Globe, 
   ArrowRight, 
@@ -42,7 +43,7 @@ export default function FirestarterPage() {
   const [hasInteracted, setHasInteracted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [pageLimit, setPageLimit] = useState(10);
+  const [pageLimit, setPageLimit] = useState(config.crawling.defaultLimit);
   const [isCreationDisabled, setIsCreationDisabled] = useState<boolean | undefined>(undefined);
   const [crawlProgress, setCrawlProgress] = useState<{
     status: string;
@@ -542,8 +543,8 @@ export default function FirestarterPage() {
                     <div className="flex items-center gap-4">
                       <input
                         type="range"
-                        min="10"
-                        max="100"
+                        min={config.crawling.minLimit}
+                        max={config.crawling.maxLimit}
                         step="10"
                         value={pageLimit}
                         onChange={(e) => setPageLimit(parseInt(e.target.value))}
@@ -561,7 +562,7 @@ export default function FirestarterPage() {
                   </div>
                   
                   <div className="grid grid-cols-4 gap-2 mt-4">
-                    {[10, 25, 50, 100].map(limit => (
+                    {config.crawling.limitOptions.map(limit => (
                       <Button
                         key={limit}
                         type="button"

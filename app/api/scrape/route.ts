@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import FirecrawlApp from '@mendable/firecrawl-js';
-import { isRateLimited } from '@/lib/rate-limit';
+import { serverConfig as config } from '@/firestarter.config';
 
 interface ScrapeRequestBody {
   url?: string;
@@ -19,19 +19,26 @@ interface ApiError extends Error {
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimit = await isRateLimited(request, 'scrape');
-  
-  if (!rateLimit.success) {
-    return NextResponse.json({ 
-      success: false,
-      error: 'Rate limit exceeded. Please try again later.' 
-    }, { 
-      status: 429,
-      headers: {
-        'X-RateLimit-Limit': rateLimit.limit.toString(),
-        'X-RateLimit-Remaining': rateLimit.remaining.toString(),
-      }
-    });
+  // Check rate limit if enabled
+  if (config.rateLimits.scrape) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                request.headers.get('x-real-ip') || 
+                '127.0.0.1';
+    
+    const rateLimit = await config.rateLimits.scrape.limit(ip);
+    
+    if (!rateLimit.success) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'Rate limit exceeded. Please try again later.' 
+      }, { 
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': rateLimit.limit.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+        }
+      });
+    }
   }
 
   let apiKey = process.env.FIRECRAWL_API_KEY;
