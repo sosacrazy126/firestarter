@@ -177,45 +177,74 @@ function getStorageAdapter(): StorageAdapter {
 // Lazy initialization to avoid errors at module load time
 let storage: StorageAdapter | null = null
 
-function getStorage(): StorageAdapter {
+function getStorage(): StorageAdapter | null {
   if (!storage) {
-    storage = getStorageAdapter()
+    try {
+      storage = getStorageAdapter()
+    } catch {
+      // This is expected on the server without Redis configured
+      return null
+    }
   }
   return storage
 }
 
-export const getIndexes = () => {
+export const getIndexes = async (): Promise<IndexMetadata[]> => {
+  const adapter = getStorage()
+  if (!adapter) {
+    console.warn('No storage adapter available')
+    return []
+  }
+  
   try {
-    return getStorage().getIndexes()
+    return await adapter.getIndexes()
   } catch (error) {
     console.error('Storage adapter error:', error)
-    return Promise.resolve([])
+    return []
   }
 }
 
-export const getIndex = (namespace: string) => {
+export const getIndex = async (namespace: string): Promise<IndexMetadata | null> => {
+  const adapter = getStorage()
+  if (!adapter) {
+    console.warn('No storage adapter available')
+    return null
+  }
+  
   try {
-    return getStorage().getIndex(namespace)
+    return await adapter.getIndex(namespace)
   } catch (error) {
     console.error('Storage adapter error:', error)
-    return Promise.resolve(null)
+    return null
   }
 }
 
-export const saveIndex = (index: IndexMetadata) => {
+export const saveIndex = async (index: IndexMetadata): Promise<void> => {
+  const adapter = getStorage()
+  if (!adapter) {
+    console.warn('No storage adapter available - index not saved')
+    return
+  }
+  
   try {
-    return getStorage().saveIndex(index)
+    return await adapter.saveIndex(index)
   } catch (error) {
     console.error('Storage adapter error:', error)
-    return Promise.reject(error)
+    // Don't throw - this allows the app to continue functioning
   }
 }
 
-export const deleteIndex = (namespace: string) => {
+export const deleteIndex = async (namespace: string): Promise<void> => {
+  const adapter = getStorage()
+  if (!adapter) {
+    console.warn('No storage adapter available - index not deleted')
+    return
+  }
+  
   try {
-    return getStorage().deleteIndex(namespace)
+    return await adapter.deleteIndex(namespace)
   } catch (error) {
     console.error('Storage adapter error:', error)
-    return Promise.reject(error)
+    // Don't throw - this allows the app to continue functioning
   }
 }

@@ -46,12 +46,14 @@ export async function POST(request: NextRequest) {
     // Start crawling the website with specified limit
     console.log('[FIRESTARTER-CREATE] Starting crawl for', url, 'with limit of', limit, 'pages')
     
-    const crawlOptions: any = {
+    const crawlOptions = {
       limit: limit,
       scrapeOptions: {
-        formats: ['markdown', 'html'],
+        formats: ['markdown', 'html'] as ('markdown' | 'html')[],
         maxAge: 604800, // 1 week in seconds (7 * 24 * 60 * 60)
-      }
+      },
+      includePaths: undefined as string[] | undefined,
+      excludePaths: undefined as string[] | undefined
     }
     
     // Add include/exclude paths if provided
@@ -121,7 +123,9 @@ export async function POST(request: NextRequest) {
       return {
         id: `${namespace}-${index}`,
         content: {
-          text: searchableText  // Content must be an object
+          text: searchableText,  // Searchable text
+          url: url,  // Required by FirestarterContent
+          title: title  // Required by FirestarterContent
         },
         metadata: {
           namespace: namespace,

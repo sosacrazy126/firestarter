@@ -9,12 +9,12 @@ export async function POST(request: NextRequest) {
     
     // Handle both direct query format and useChat format
     let query = body.query
-    let namespace = body.namespace
-    let stream = body.stream ?? false
+    const namespace = body.namespace
+    const stream = body.stream ?? false
     
     // If using useChat format, extract query from messages
     if (!query && body.messages && Array.isArray(body.messages)) {
-      const lastUserMessage = body.messages.filter((m: any) => m.role === 'user').pop()
+      const lastUserMessage = body.messages.filter((m: { role: string }) => m.role === 'user').pop()
       query = lastUserMessage?.content
     }
     

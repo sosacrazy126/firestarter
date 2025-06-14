@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Globe, Copy, Check, AlertCircle, FileText, Database, ArrowLeft, ExternalLink } from 'lucide-react'
+import { Send, Globe, Copy, Check, FileText, Database, ArrowLeft, ExternalLink } from 'lucide-react'
 import Image from 'next/image'
 // Removed useChat - using custom implementation
 import { toast } from "sonner"
@@ -201,7 +201,7 @@ function MarkdownContent({ content, onSourceClick, isStreaming = false }: { cont
   );
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [siteData, setSiteData] = useState<SiteData | null>(null)
@@ -309,7 +309,7 @@ export default function DashboardPage() {
                   sources = sourcesData.sources
                 }
               }
-            } catch (e) {
+            } catch {
               console.log('[Dashboard] Could not parse stream data:', line)
             }
           } else if (line.startsWith('e:') || line.startsWith('d:')) {
@@ -336,7 +336,7 @@ export default function DashboardPage() {
       const storedIndexes = localStorage.getItem('firestarter_indexes')
       if (storedIndexes) {
         const indexes = JSON.parse(storedIndexes)
-        const matchingIndex = indexes.find((idx: any) => idx.namespace === namespaceParam)
+        const matchingIndex = indexes.find((idx: { namespace: string }) => idx.namespace === namespaceParam)
         if (matchingIndex) {
           console.log('[Dashboard] Found matching index:', matchingIndex)
           setSiteData(matchingIndex)
@@ -379,7 +379,7 @@ export default function DashboardPage() {
     const storedIndexes = localStorage.getItem('firestarter_indexes')
     if (storedIndexes && siteData) {
       const indexes = JSON.parse(storedIndexes)
-      const updatedIndexes = indexes.filter((idx: any) => idx.namespace !== siteData.namespace)
+      const updatedIndexes = indexes.filter((idx: { namespace: string }) => idx.namespace !== siteData.namespace)
       localStorage.setItem('firestarter_indexes', JSON.stringify(updatedIndexes))
     }
     
@@ -891,5 +891,26 @@ print(data['choices'][0]['message']['content'])`
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-red-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-center items-center min-h-[60vh]">
+            <div className="text-center">
+              <div className="w-12 h-12 text-orange-600 mx-auto mb-4 animate-spin">
+                <Database className="w-full h-full" />
+              </div>
+              <p className="text-gray-600">Loading dashboard...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }
