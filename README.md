@@ -71,46 +71,46 @@ Let's trace the journey from submitting `https://docs.firecrawl.dev` to asking i
 ```mermaid
 graph TD
     subgraph "Phase 1: Chatbot Creation"
-        A["Input: https://docs.firecrawl.dev"] --> B{API: /api/firestarter/create};
-        B -->|1. Initiate Crawl| C["Firecrawl API - Crawl 10 pages"];
-        C -->|2. Returns Markdown| D["[Page 1 MD, Page 2 MD, ...]"];
-        D -->|3. Process & Chunk Content| E[Upstash Search Client];
-        E -->|4. Upsert Vectors| F[("Upstash Index (namespace: docs-firecrawl-dev-123)")];
-        F -->|5. Store Metadata| G[("Redis or LocalStorage")];
-        G --> H{Redirect to Chat Dashboard};
+        A["Input: https://docs.firecrawl.dev"] --> B["API: /api/firestarter/create"]
+        B -->|1. Initiate Crawl| C["Firecrawl API - Crawl 10 pages"]
+        C -->|2. Returns Markdown| D["[Page 1 MD, Page 2 MD, ...]"]
+        D -->|3. Process & Chunk Content| E["Upstash Search Client"]
+        E -->|4. Upsert Vectors| F[["Upstash Index (namespace: docs-firecrawl-dev-123)"]]
+        F -->|5. Store Metadata| G[["Redis or LocalStorage"]]
+        G --> H["Redirect to Chat Dashboard"]
     end
 
     subgraph "Phase 2: Chat Interaction"
-        H --> I["User asks: 'How do I use the API?'"];
-        I --> J{API: /api/firestarter/query};
-        J -->|6. Search Query + Namespace| K[Upstash Search];
-        K -->|7. Find Relevant Docs| L["Context: [API page content, Quickstart MD, ...]"];
-        L -->|8. Construct RAG Prompt| M[Groq/OpenAI/Anthropic LLM];
-        M -->|9. Generate Answer| N[Streaming Response];
-        N -->|10. Stream via Vercel AI SDK| O[User sees typing answer in UI];
+        H --> I["User asks: 'How do I use the API?'"]
+        I --> J["API: /api/firestarter/query"]
+        J -->|6. Search Query + Namespace| K["Upstash Search"]
+        K -->|7. Find Relevant Docs| L["Context: [API page content, Quickstart MD, ...]"]
+        L -->|8. Construct RAG Prompt| M["Groq/OpenAI/Anthropic LLM"]
+        M -->|9. Generate Answer| N["Streaming Response"]
+        N -->|10. Stream via Vercel AI SDK| O["User sees typing answer in UI"]
     end
 
     subgraph "Bonus: Developer API Access"
-        H --> P["OpenAI-Compatible Endpoint: /api/v1/chat/completions"];
-        P --> Q["Model Name: firecrawl-docs-firecrawl-dev-123"];
-        Q --> R["Use with any OpenAI Client (JS, Python, etc.)"];
+        H --> P["OpenAI-Compatible Endpoint: /api/v1/chat/completions"]
+        P --> Q["Model Name: firecrawl-docs-firecrawl-dev-123"]
+        Q --> R["Use with any OpenAI Client (JS, Python, etc.)"]
     end
 
     %% Styling
-    classDef user-input fill:#ff8c42,stroke:#ff6b1a,stroke-width:2px,color:#fff;
-    classDef api fill:#9c27b0,stroke:#7b1fa2,stroke-width:2px,color:#fff;
-    classDef external fill:#ff6b1a,stroke:#ff4500,stroke-width:3px,color:#fff;
-    classDef storage fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#fff;
-    classDef llm fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff;
-    classDef process fill:#ffa726,stroke:#ff8c42,stroke-width:2px,color:#000;
-    classDef output fill:#333,stroke:#000,stroke-width:3px,color:#fff;
+    classDef userInput fill:#ff8c42,stroke:#ff6b1a,stroke-width:2px,color:#fff
+    classDef api fill:#9c27b0,stroke:#7b1fa2,stroke-width:2px,color:#fff
+    classDef external fill:#ff6b1a,stroke:#ff4500,stroke-width:3px,color:#fff
+    classDef storage fill:#2196F3,stroke:#1976D2,stroke-width:2px,color:#fff
+    classDef llm fill:#4CAF50,stroke:#388E3C,stroke-width:2px,color:#fff
+    classDef process fill:#ffa726,stroke:#ff8c42,stroke-width:2px,color:#000
+    classDef output fill:#333,stroke:#000,stroke-width:3px,color:#fff
 
-    A, I:::user-input;
-    B, J, P:::api;
-    C, M:::llm;
-    E, F, G, K:::storage;
-    D, L, N, Q:::process;
-    H, O, R:::output;
+    class A,I userInput
+    class B,J,P api
+    class C,M llm
+    class E,F,G,K storage
+    class D,L,N,Q process
+    class H,O,R output
 ```
 
 ### Phase 1: Indexing a Website
