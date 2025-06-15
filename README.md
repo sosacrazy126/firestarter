@@ -1,7 +1,7 @@
 # Firestarter - Instant AI Chatbots for Any Website
 
 <div align="center">
-  <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZtZ3B2eHl3eG04cHNzdzlxenZ2eGZpdWhpbndjaHQyYTV2Z21sNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/h2z23a22t22iXv2a4L/giphy.gif" alt="Firestarter Demo" width="100%" />
+  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGVhOTdxaDhxZGJ6bnAwaDB3bWp3bXpnYzN1NDBrazJ1MGpvOG51aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ZAOM1psWWVQYeAaS38/giphy.gif" alt="Firestarter Demo" width="100%" />
 </div>
 
 Instantly create a knowledgeable AI chatbot for any website. Firestarter crawls your site, indexes the content, and provides a ready-to-use RAG-powered chat interface and an OpenAI-compatible API endpoint.
