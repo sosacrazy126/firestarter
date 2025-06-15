@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Globe, Copy, Check, FileText, Database, ArrowLeft, ExternalLink } from 'lucide-react'
+import { Send, Globe, Copy, Check, FileText, Database, ArrowLeft, ExternalLink, BookOpen } from 'lucide-react'
 import Image from 'next/image'
 // Removed useChat - using custom implementation
 import { toast } from "sonner"
@@ -775,46 +775,6 @@ print(data['choices'][0]['message']['content'])`
               )}
                 </div>
                 
-                {/* Sources section - fixed at bottom */}
-                {messages.length > 0 && (() => {
-                  const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
-                  console.log('[Dashboard] Checking for sources to display')
-                  console.log('[Dashboard] Last assistant message:', lastAssistantMessage)
-                  console.log('[Dashboard] Sources in last message:', lastAssistantMessage?.sources)
-                  return lastAssistantMessage?.sources && lastAssistantMessage.sources.length > 0 ? (
-                    <div className="border-t border-gray-200 bg-gray-50 max-h-[250px] overflow-y-auto">
-                      <div className="p-4">
-                        <p className="text-xs font-medium text-gray-700 mb-3">Sources</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {lastAssistantMessage.sources.map((source, idx) => (
-                            <a
-                              key={idx}
-                              href={source.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-start gap-2 p-3 bg-white hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-gray-300 transition-all group"
-                            >
-                              <span className="text-xs font-medium text-gray-500 flex-shrink-0">[{idx + 1}]</span>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-xs font-medium text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                  {source.title}
-                                </h4>
-                                <p className="text-xs text-gray-500 mt-1 truncate">
-                                  {new URL(source.url).hostname}
-                                </p>
-                              </div>
-                              <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-blue-600 flex-shrink-0" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border-t border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-500">
-                      <p>No sources available for this response</p>
-                    </div>
-                  )
-                })()}
                 
                 <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
                   <div className="relative">
@@ -837,42 +797,115 @@ print(data['choices'][0]['message']['content'])`
                 </form>
               </div>
               
-              {/* Sources Panel - Hidden on mobile, show on desktop */}
+              {/* Sources Panel - Shows on right side when available */}
               <div className="hidden lg:block lg:w-1/3">
                 <div className="bg-white rounded-xl p-6 border border-gray-200 flex flex-col h-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-[#36322F]">Knowledge Base</h2>
-                  </div>
-                  
-                  <div className="space-y-3 p-3 flex-1">
-                    <div className="text-center py-8">
-                      <Database className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        {siteData.pagesCrawled} pages indexed
-                      </p>
-                      <p className="text-xs text-gray-500 mb-4">
-                        Ready to answer questions about {siteData.metadata.title}
-                      </p>
-                      <div className="space-y-2 text-left">
-                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-xs text-gray-600">Total chunks</span>
-                          <span className="text-xs font-medium text-gray-800">{Math.round(siteData.pagesCrawled * 3)}</span>
+                  {(() => {
+                    const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
+                    const hasSources = lastAssistantMessage?.sources && lastAssistantMessage.sources.length > 0
+                    
+                    if (hasSources) {
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-4 animate-fade-in">
+                            <h2 className="text-lg font-semibold text-[#36322F] flex items-center gap-2">
+                              <BookOpen className="w-5 h-5 text-orange-500" />
+                              Sources
+                            </h2>
+                            <span className="text-xs text-gray-500 bg-orange-50 px-2 py-1 rounded-full">
+                              {lastAssistantMessage.sources.length} references
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-3 flex-1 overflow-y-auto">
+                            {lastAssistantMessage.sources.map((source, idx) => (
+                              <a
+                                key={idx}
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block p-4 bg-gradient-to-br from-gray-50 to-gray-100 hover:from-orange-50 hover:to-orange-100 rounded-lg border border-gray-200 hover:border-orange-300 transition-all duration-300 group animate-fade-in transform hover:scale-[1.02] hover:shadow-md"
+                                style={{
+                                  animationDelay: `${idx * 100}ms`,
+                                  animationDuration: '0.5s',
+                                  animationFillMode: 'both'
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span className="text-sm font-medium text-orange-500 flex-shrink-0 bg-orange-100 w-8 h-8 rounded-full flex items-center justify-center">
+                                    {idx + 1}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-medium text-gray-800 group-hover:text-orange-600 transition-colors line-clamp-2 mb-1">
+                                      {source.title}
+                                    </h4>
+                                    {source.snippet && (
+                                      <p className="text-xs text-gray-600 line-clamp-3 mb-2 leading-relaxed">
+                                        {source.snippet}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-gray-500 truncate flex items-center gap-1 group-hover:text-orange-500 transition-colors">
+                                      <ExternalLink className="w-3 h-3" />
+                                      {new URL(source.url).hostname}
+                                    </p>
+                                  </div>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </>
+                      )
+                    }
+                    
+                    // Default knowledge base view when no sources
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-lg font-semibold text-[#36322F] flex items-center gap-2">
+                            <Database className="w-5 h-5 text-gray-400" />
+                            Knowledge Base
+                          </h2>
                         </div>
-                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-xs text-gray-600">Crawl date</span>
-                          <span className="text-xs font-medium text-gray-800">
-                            {siteData.crawlDate ? new Date(siteData.crawlDate).toLocaleDateString() : 'N/A'}
-                          </span>
+                        
+                        <div className="space-y-3 p-3 flex-1">
+                          <div className="text-center py-8">
+                            <div className="relative">
+                              <Database className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-20 h-20 bg-gray-200 rounded-full animate-ping opacity-20"></div>
+                              </div>
+                            </div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">
+                              {siteData.pagesCrawled} pages indexed
+                            </p>
+                            <p className="text-xs text-gray-500 mb-6">
+                              Ready to answer questions about {siteData.metadata.title}
+                            </p>
+                            <div className="space-y-2 text-left">
+                              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                                <span className="text-xs text-gray-600">Total chunks</span>
+                                <span className="text-xs font-medium text-gray-800 bg-white px-2 py-1 rounded">
+                                  {Math.round(siteData.pagesCrawled * 3)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                                <span className="text-xs text-gray-600">Crawl date</span>
+                                <span className="text-xs font-medium text-gray-800 bg-white px-2 py-1 rounded">
+                                  {siteData.crawlDate ? new Date(siteData.crawlDate).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                                <span className="text-xs text-gray-600">Namespace</span>
+                                <span className="text-xs font-mono text-gray-800 truncate max-w-[140px] bg-white px-2 py-1 rounded">
+                                  {siteData.namespace.split('-').slice(0, -1).join('.')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-xs text-gray-600">Namespace</span>
-                          <span className="text-xs font-mono text-gray-800 truncate max-w-[150px]">
-                            {siteData.namespace.split('-').slice(0, -1).join('.')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>

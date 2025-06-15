@@ -82,7 +82,8 @@ export async function POST(request: NextRequest) {
       
       const searchResults = await searchIndex.search({
         query: searchQuery,
-        limit: config.search.maxResults
+        limit: config.search.maxResults,
+        reranking: true
       })
       
       console.log('[FIRESTARTER-QUERY] Initial search found:', searchResults.length, 'results')
@@ -108,7 +109,8 @@ export async function POST(request: NextRequest) {
         
         const fallbackResults = await searchIndex.search({
           query: namespace,
-          limit: config.search.maxResults
+          limit: config.search.maxResults,
+          reranking: true
         })
         
         console.log('[FIRESTARTER-QUERY] Fallback search found:', fallbackResults.length, 'results')
