@@ -813,12 +813,12 @@ print(data['choices'][0]['message']['content'])`
                               Sources
                             </h2>
                             <span className="text-xs text-gray-500 bg-orange-50 px-2 py-1 rounded-full">
-                              {lastAssistantMessage.sources.length} references
+                              {lastAssistantMessage.sources?.length || 0} references
                             </span>
                           </div>
                           
                           <div className="space-y-3 flex-1 overflow-y-auto">
-                            {lastAssistantMessage.sources.map((source, idx) => (
+                            {lastAssistantMessage.sources?.map((source, idx) => (
                               <a
                                 key={idx}
                                 href={source.url}
