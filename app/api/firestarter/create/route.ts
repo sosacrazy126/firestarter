@@ -4,8 +4,12 @@ import { searchIndex } from '@/lib/upstash-search'
 import { saveIndex } from '@/lib/storage'
 import { serverConfig as config } from '@/firestarter.config'
 
+console.log('[FIRESTARTER-CREATE] Module loaded')
+
 export async function POST(request: NextRequest) {
+  console.log('[FIRESTARTER-CREATE] POST request received')
   try {
+    console.log('[FIRESTARTER-CREATE] Reading request body...')
     // Check if creation is disabled
     if (!config.features.enableCreation) {
       console.log('[FIRESTARTER-CREATE] Creation is disabled via configuration')
@@ -14,7 +18,16 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    const { url, limit = config.crawling.defaultLimit, includePaths, excludePaths } = await request.json()
+    let body;
+    try {
+      body = await request.json()
+      console.log('[FIRESTARTER-CREATE] Request body parsed:', JSON.stringify(body))
+    } catch (parseError) {
+      console.error('[FIRESTARTER-CREATE] Failed to parse request body:', parseError)
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+    
+    const { url, limit = config.crawling.defaultLimit, includePaths, excludePaths } = body
     console.log('[FIRESTARTER-CREATE] Received crawl request for URL:', url, 'with limit:', limit)
     if (includePaths) console.log('[FIRESTARTER-CREATE] Include paths:', includePaths)
     if (excludePaths) console.log('[FIRESTARTER-CREATE] Exclude paths:', excludePaths)
@@ -252,6 +265,7 @@ export async function POST(request: NextRequest) {
       data: crawlResponse.data // Include the actual crawl data
     })
   } catch (error) {
+    console.error('[FIRESTARTER-CREATE] ===== CAUGHT ERROR =====')
     console.error('[FIRESTARTER-CREATE] Error in create route:', error)
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -281,3 +295,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

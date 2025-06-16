@@ -26,11 +26,11 @@ function getAIModel() {
   if (typeof window !== 'undefined') {
     return null
   }
-  // Priority: Groq > OpenAI > Anthropic
-  if (AI_PROVIDERS.groq.enabled) return AI_PROVIDERS.groq.model
+  // Priority: OpenAI (GPT-4o) > Anthropic (Claude 3.5 Sonnet) > Groq
   if (AI_PROVIDERS.openai.enabled) return AI_PROVIDERS.openai.model
   if (AI_PROVIDERS.anthropic.enabled) return AI_PROVIDERS.anthropic.model
-  throw new Error('No AI provider configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY')
+  if (AI_PROVIDERS.groq.enabled) return AI_PROVIDERS.groq.model
+  throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY')
 }
 
 // Rate limiter factory

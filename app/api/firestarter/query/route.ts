@@ -175,10 +175,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const groqApiKey = process.env.GROQ_API_KEY
-    if (!groqApiKey) {
-      console.error('[FIRESTARTER-QUERY] GROQ_API_KEY is not set!')
-      const answer = 'AI service is not configured. Please set GROQ_API_KEY in your environment variables.'
+    // Check if we have any AI provider configured
+    try {
+      const model = getModel()
+      if (!model) {
+        throw new Error('No AI model available')
+      }
+    } catch (modelError) {
+      console.error('[FIRESTARTER-QUERY] AI model error:', modelError)
+      const answer = 'AI service is not configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your environment variables.'
       return new Response(
         JSON.stringify({ answer, sources: [] }), 
         { headers: { 'Content-Type': 'application/json' } }

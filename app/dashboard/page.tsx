@@ -36,6 +36,7 @@ interface SiteData {
   crawlId?: string
   crawlComplete?: boolean
   crawlDate?: string
+  createdAt?: string
 }
 
 // Simple markdown renderer component
@@ -799,7 +800,7 @@ print(data['choices'][0]['message']['content'])`
               
               {/* Sources Panel - Shows on right side when available */}
               <div className="hidden lg:block lg:w-1/3">
-                <div className="bg-white rounded-xl p-6 border border-gray-200 flex flex-col h-full">
+                <div className="bg-white rounded-xl p-6 border border-gray-200 flex flex-col h-full overflow-hidden">
                   {(() => {
                     const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
                     const hasSources = lastAssistantMessage?.sources && lastAssistantMessage.sources.length > 0
@@ -824,7 +825,7 @@ print(data['choices'][0]['message']['content'])`
                                 href={source.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block p-4 bg-gradient-to-br from-gray-50 to-gray-100 hover:from-orange-50 hover:to-orange-100 rounded-lg border border-gray-200 hover:border-orange-300 transition-all duration-300 group animate-fade-in transform hover:scale-[1.02] hover:shadow-md"
+                                className="block p-4 bg-gradient-to-br from-gray-50 to-gray-100 hover:from-orange-50 hover:to-orange-100 rounded-lg border border-gray-200 hover:border-orange-300 transition-all duration-300 group animate-fade-in hover:shadow-md"
                                 style={{
                                   animationDelay: `${idx * 100}ms`,
                                   animationDuration: '0.5s',
@@ -891,7 +892,10 @@ print(data['choices'][0]['message']['content'])`
                               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
                                 <span className="text-xs text-gray-600">Crawl date</span>
                                 <span className="text-xs font-medium text-gray-800 bg-white px-2 py-1 rounded">
-                                  {siteData.crawlDate ? new Date(siteData.crawlDate).toLocaleDateString() : 'N/A'}
+                                  {(() => {
+                                    const dateString = siteData.crawlDate || siteData.createdAt;
+                                    return dateString ? new Date(dateString).toLocaleDateString() : 'N/A';
+                                  })()}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">

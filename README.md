@@ -42,9 +42,9 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
    UPSTASH_SEARCH_REST_TOKEN=your_upstash_search_token
    
    # Choose at least one LLM Provider (the first one found will be used)
-   GROQ_API_KEY=your_groq_key
-   # OPENAI_API_KEY=your_openai_key
+   OPENAI_API_KEY=your_openai_key
    # ANTHROPIC_API_KEY=your_anthropic_key
+   # GROQ_API_KEY=your_groq_key
    ```
 3. Install dependencies: `npm install` or `yarn install`
 4. Run the development server: `npm run dev` or `yarn dev`
@@ -58,10 +58,6 @@ A website URL, like `https://firecrawl.dev`
 **Output:**
 A fully functional chat interface and an API endpoint to query your website's content.
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/mendableai/firestarter/main/public/firestarter-ui-example.png" alt="Firestarter Chat UI Example" width="100%" />
-</div>
-
 ## How It Works
 
 ### Architecture Overview: From URL to AI Chatbot
@@ -70,30 +66,30 @@ Let's trace the journey from submitting `https://docs.firecrawl.dev` to asking i
 
 ```mermaid
 graph TD
-    subgraph "Phase 1: Chatbot Creation"
-        A["Input: https://docs.firecrawl.dev"] --> B["API: /api/firestarter/create"]
-        B -->|1. Initiate Crawl| C["Firecrawl API - Crawl 10 pages"]
-        C -->|2. Returns Markdown| D["[Page 1 MD, Page 2 MD, ...]"]
-        D -->|3. Process & Chunk Content| E["Upstash Search Client"]
-        E -->|4. Upsert Vectors| F[["Upstash Index (namespace: docs-firecrawl-dev-123)"]]
-        F -->|5. Store Metadata| G[["Redis or LocalStorage"]]
-        G --> H["Redirect to Chat Dashboard"]
+    subgraph Phase1[Phase 1 - Chatbot Creation]
+        A[Input: https://docs.firecrawl.dev] --> B[API: /api/firestarter/create]
+        B -->|1. Initiate Crawl| C[Firecrawl API - Crawl 10 pages]
+        C -->|2. Returns Markdown| D[Page 1 MD, Page 2 MD, ...]
+        D -->|3. Process & Chunk Content| E[Upstash Search Client]
+        E -->|4. Upsert Vectors| F[Upstash Index<br/>namespace: docs-firecrawl-dev-123]
+        F -->|5. Store Metadata| G[Redis or LocalStorage]
+        G --> H[Redirect to Chat Dashboard]
     end
 
-    subgraph "Phase 2: Chat Interaction"
-        H --> I["User asks: 'How do I use the API?'"]
-        I --> J["API: /api/firestarter/query"]
-        J -->|6. Search Query + Namespace| K["Upstash Search"]
-        K -->|7. Find Relevant Docs| L["Context: [API page content, Quickstart MD, ...]"]
-        L -->|8. Construct RAG Prompt| M["Groq/OpenAI/Anthropic LLM"]
-        M -->|9. Generate Answer| N["Streaming Response"]
-        N -->|10. Stream via Vercel AI SDK| O["User sees typing answer in UI"]
+    subgraph Phase2[Phase 2 - Chat Interaction]
+        H --> I[User asks: How do I use the API?]
+        I --> J[API: /api/firestarter/query]
+        J -->|6. Search Query + Namespace| K[Upstash Search]
+        K -->|7. Find Relevant Docs| L[Context: API page content, Quickstart MD, ...]
+        L -->|8. Construct RAG Prompt| M[Groq/OpenAI/Anthropic LLM]
+        M -->|9. Generate Answer| N[Streaming Response]
+        N -->|10. Stream via Vercel AI SDK| O[User sees typing answer in UI]
     end
 
-    subgraph "Bonus: Developer API Access"
-        H --> P["OpenAI-Compatible Endpoint: /api/v1/chat/completions"]
-        P --> Q["Model Name: firecrawl-docs-firecrawl-dev-123"]
-        Q --> R["Use with any OpenAI Client (JS, Python, etc.)"]
+    subgraph Bonus[Bonus - Developer API Access]
+        H --> P[OpenAI-Compatible Endpoint<br/>/api/v1/chat/completions]
+        P --> Q[Model Name: firecrawl-docs-firecrawl-dev-123]
+        Q --> R[Use with any OpenAI Client<br/>JS, Python, etc.]
     end
 
     %% Styling
@@ -191,18 +187,18 @@ const config = {
 
 ### Changing the LLM Provider
 
-Firestarter supports multiple LLM providers and uses them based on a priority system. The default priority is **Groq → OpenAI → Anthropic**. The system will use the first provider in this list for which it finds a valid API key in your environment.
+Firestarter supports multiple LLM providers and uses them based on a priority system. The default priority is **OpenAI (GPT-4o) → Anthropic (Claude 3.5 Sonnet) → Groq**. The system will use the first provider in this list for which it finds a valid API key in your environment.
 
-To change the provider, simply adjust your `.env.local` file. For example, to force the use of OpenAI, make sure your `GROQ_API_KEY` is commented out or removed, and your `OPENAI_API_KEY` is set.
+To change the provider, simply adjust your `.env.local` file. For example, to use Anthropic instead of OpenAI, comment out your `OPENAI_API_KEY` and ensure your `ANTHROPIC_API_KEY` is set.
 
-**Example `.env.local` to use OpenAI:**
+**Example `.env.local` to use Anthropic:**
 ```
-# To use OpenAI instead of Groq, comment out the Groq key:
+# To use Anthropic instead of OpenAI, comment out the OpenAI key:
+# OPENAI_API_KEY=sk-...
+
+ANTHROPIC_API_KEY=sk-ant-...
+
 # GROQ_API_KEY=gsk_...
-
-OPENAI_API_KEY=sk-...
-
-# ANTHROPIC_API_KEY=...
 ```
 
 This provider selection logic is controlled in [`firestarter.config.ts`](firestarter.config.ts). You can modify the `getAIModel` function if you want to implement a different selection strategy.
