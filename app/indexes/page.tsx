@@ -50,9 +50,9 @@ export default function IndexesPage() {
       try {
         await deleteIndex(index.namespace)
         toast.success('Chatbot deleted successfully')
-      } catch (e) {
-        console.error('Error deleting index:', e)
+      } catch {
         toast.error('Failed to delete chatbot')
+        console.error('Failed to delete index')
       }
     }
   }

@@ -19,7 +19,6 @@ export default function DebugPage() {
       const data = await response.json()
       setResults(data)
     } catch (error) {
-      console.error('Debug error:', error)
       setResults({ error: error instanceof Error ? error.message : 'Unknown error' })
     } finally {
       setLoading(false)

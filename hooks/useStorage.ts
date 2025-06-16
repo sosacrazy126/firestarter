@@ -28,7 +28,6 @@ export function useStorage() {
         setIndexes(stored ? JSON.parse(stored) : [])
       }
     } catch (err) {
-      console.error('Error fetching indexes:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch indexes')
       setIndexes([])
     } finally {
@@ -67,7 +66,6 @@ export function useStorage() {
         setIndexes(limitedIndexes)
       }
     } catch (err) {
-      console.error('Error saving index:', err)
       throw err
     }
   }
@@ -91,7 +89,6 @@ export function useStorage() {
         setIndexes(filteredIndexes)
       }
     } catch (err) {
-      console.error('Error deleting index:', err)
       throw err
     }
   }

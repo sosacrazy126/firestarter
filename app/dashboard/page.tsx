@@ -266,7 +266,6 @@ function DashboardContent() {
         for (const line of lines) {
           if (line.trim() === '') continue
           
-          console.log('[Dashboard] Processing line:', line.substring(0, 50) + '...')
           
           // Handle Vercel AI SDK streaming format
           if (line.startsWith('0:')) {
@@ -300,51 +299,41 @@ function DashboardContent() {
             }
           } else if (line.startsWith('8:')) {
             // Streaming data chunk (sources, etc)
-            console.log('[Dashboard] Received 8: line:', line)
             try {
               const jsonStr = line.slice(2)
               const data = JSON.parse(jsonStr)
-              console.log('[Dashboard] Parsed stream data:', data)
               
               // Check if this is the sources data
               if (data && typeof data === 'object' && 'sources' in data) {
                 sources = data.sources
-                console.log('[Dashboard] Found sources:', sources)
-                console.log('[Dashboard] Sources count:', sources.length)
                 
                 // Update the last message with sources
                 setMessages(prev => {
                   const newMessages = [...prev]
                   const lastMessage = newMessages[newMessages.length - 1]
-                  console.log('[Dashboard] Updating last message:', lastMessage?.role)
                   if (lastMessage && lastMessage.role === 'assistant') {
                     lastMessage.sources = sources
-                    console.log('[Dashboard] Updated message with sources')
                   }
                   return newMessages
                 })
               } else if (Array.isArray(data)) {
                 // Legacy format support
-                console.log('[Dashboard] Checking legacy format')
                 const sourcesData = data.find(item => item && typeof item === 'object' && 'type' in item && item.type === 'sources')
                 if (sourcesData && sourcesData.sources) {
                   sources = sourcesData.sources
-                  console.log('[Dashboard] Found sources in legacy format:', sources)
                 }
               }
-            } catch (e) {
-              console.error('[Dashboard] Error parsing stream data:', e)
-              console.log('[Dashboard] Raw line that failed:', line)
+            } catch {
+              console.error('Failed to parse streaming data')
             }
           } else if (line.startsWith('e:') || line.startsWith('d:')) {
             // End metadata - we can ignore these
-            console.log('[Dashboard] Stream ended')
           }
         }
       }
-    } catch (error) {
-      console.error('Chat error:', error)
+    } catch {
       toast.error('Failed to get response')
+      console.error('Query failed')
     } finally {
       setIsLoading(false)
     }
@@ -353,7 +342,6 @@ function DashboardContent() {
   useEffect(() => {
     // Get namespace from URL params
     const namespaceParam = searchParams.get('namespace')
-    console.log('[Dashboard] Loading with namespace:', namespaceParam)
     
     if (namespaceParam) {
       // Try to load data for this specific namespace
@@ -362,7 +350,6 @@ function DashboardContent() {
         const indexes = JSON.parse(storedIndexes)
         const matchingIndex = indexes.find((idx: { namespace: string }) => idx.namespace === namespaceParam)
         if (matchingIndex) {
-          console.log('[Dashboard] Found matching index:', matchingIndex)
           setSiteData(matchingIndex)
           // Also update sessionStorage for consistency
           sessionStorage.setItem('firestarter_current_data', JSON.stringify(matchingIndex))
@@ -419,7 +406,6 @@ function DashboardContent() {
 
 
   if (!siteData) {
-    console.log('[Dashboard] No siteData, showing loading...')
     return (
       <div className="min-h-screen bg-[#FBFAF9] flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
@@ -427,7 +413,6 @@ function DashboardContent() {
     )
   }
   
-  console.log('[Dashboard] Rendering with siteData:', siteData)
 
   const modelName = `firecrawl-${siteData.namespace}`
   

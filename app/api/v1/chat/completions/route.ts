@@ -370,7 +370,6 @@ export async function POST(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error in OpenAI-compatible endpoint:', error)
     return NextResponse.json(
       { 
         error: {

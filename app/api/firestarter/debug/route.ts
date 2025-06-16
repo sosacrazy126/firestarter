@@ -6,7 +6,6 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const namespace = searchParams.get('namespace')
     
-    console.log('[FIRESTARTER-DEBUG] Debug endpoint called with namespace:', namespace)
     
     // Try different search approaches
     interface DebugResults {
@@ -40,9 +39,7 @@ export async function GET(request: NextRequest) {
           count: namespaceSearch.length,
           items: namespaceSearch
         }
-        console.log('[FIRESTARTER-DEBUG] Namespace search found:', namespaceSearch.length, 'items')
       } catch (e) {
-        console.error('[FIRESTARTER-DEBUG] Namespace search error:', e)
         results.namespaceSearchError = e instanceof Error ? e.message : String(e)
       }
     }
@@ -57,9 +54,7 @@ export async function GET(request: NextRequest) {
         count: allSearch.length,
         items: allSearch
       }
-      console.log('[FIRESTARTER-DEBUG] All search found:', allSearch.length, 'items')
     } catch (e) {
-      console.error('[FIRESTARTER-DEBUG] All search error:', e)
       results.allSearchError = e instanceof Error ? e.message : String(e)
     }
     
@@ -73,9 +68,7 @@ export async function GET(request: NextRequest) {
         count: semanticSearch.length,
         items: semanticSearch
       }
-      console.log('[FIRESTARTER-DEBUG] Semantic search found:', semanticSearch.length, 'items')
     } catch (e) {
-      console.error('[FIRESTARTER-DEBUG] Semantic search error:', e)
       results.semanticSearchError = e instanceof Error ? e.message : String(e)
     }
     
@@ -87,7 +80,6 @@ export async function GET(request: NextRequest) {
       upstashToken: process.env.UPSTASH_SEARCH_REST_TOKEN ? 'Configured' : 'Not configured'
     })
   } catch (error) {
-    console.error('[FIRESTARTER-DEBUG] Error:', error)
     return NextResponse.json(
       { 
         error: 'Debug endpoint error',

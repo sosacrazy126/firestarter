@@ -29,8 +29,8 @@ class LocalStorageAdapter implements StorageAdapter {
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY)
       return stored ? JSON.parse(stored) : []
-    } catch (error) {
-      console.error('Error reading from localStorage:', error)
+    } catch {
+      console.error('Failed to get stored indexes')
       return []
     }
   }
@@ -60,7 +60,6 @@ class LocalStorageAdapter implements StorageAdapter {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(limitedIndexes))
     } catch (error) {
-      console.error('Error saving to localStorage:', error)
       throw error
     }
   }
@@ -76,7 +75,6 @@ class LocalStorageAdapter implements StorageAdapter {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredIndexes))
     } catch (error) {
-      console.error('Error deleting from localStorage:', error)
       throw error
     }
   }
@@ -102,8 +100,8 @@ class RedisStorageAdapter implements StorageAdapter {
     try {
       const indexes = await this.redis.get<IndexMetadata[]>(this.INDEXES_KEY)
       return indexes || []
-    } catch (error) {
-      console.error('Error fetching indexes from Redis:', error)
+    } catch {
+      console.error('Failed to get indexes from Redis')
       return []
     }
   }
@@ -112,8 +110,8 @@ class RedisStorageAdapter implements StorageAdapter {
     try {
       const index = await this.redis.get<IndexMetadata>(`${this.INDEX_KEY_PREFIX}${namespace}`)
       return index
-    } catch (error) {
-      console.error('Error fetching index from Redis:', error)
+    } catch {
+      console.error('Failed to get index from Redis')
       return null
     }
   }
@@ -137,7 +135,6 @@ class RedisStorageAdapter implements StorageAdapter {
       const limitedIndexes = indexes.slice(0, 50)
       await this.redis.set(this.INDEXES_KEY, limitedIndexes)
     } catch (error) {
-      console.error('Error saving index to Redis:', error)
       throw error
     }
   }
@@ -152,7 +149,6 @@ class RedisStorageAdapter implements StorageAdapter {
       const filteredIndexes = indexes.filter(i => i.namespace !== namespace)
       await this.redis.set(this.INDEXES_KEY, filteredIndexes)
     } catch (error) {
-      console.error('Error deleting index from Redis:', error)
       throw error
     }
   }
@@ -192,14 +188,13 @@ function getStorage(): StorageAdapter | null {
 export const getIndexes = async (): Promise<IndexMetadata[]> => {
   const adapter = getStorage()
   if (!adapter) {
-    console.warn('No storage adapter available')
     return []
   }
   
   try {
     return await adapter.getIndexes()
-  } catch (error) {
-    console.error('Storage adapter error:', error)
+  } catch {
+    console.error('Failed to get indexes')
     return []
   }
 }
@@ -207,14 +202,13 @@ export const getIndexes = async (): Promise<IndexMetadata[]> => {
 export const getIndex = async (namespace: string): Promise<IndexMetadata | null> => {
   const adapter = getStorage()
   if (!adapter) {
-    console.warn('No storage adapter available')
     return null
   }
   
   try {
     return await adapter.getIndex(namespace)
-  } catch (error) {
-    console.error('Storage adapter error:', error)
+  } catch {
+    console.error('Failed to get index')
     return null
   }
 }
@@ -228,9 +222,9 @@ export const saveIndex = async (index: IndexMetadata): Promise<void> => {
   
   try {
     return await adapter.saveIndex(index)
-  } catch (error) {
-    console.error('Storage adapter error:', error)
+  } catch {
     // Don't throw - this allows the app to continue functioning
+    console.error('Failed to save index')
   }
 }
 
@@ -243,8 +237,8 @@ export const deleteIndex = async (namespace: string): Promise<void> => {
   
   try {
     return await adapter.deleteIndex(namespace)
-  } catch (error) {
-    console.error('Storage adapter error:', error)
+  } catch {
     // Don't throw - this allows the app to continue functioning
+    console.error('Failed to delete index')
   }
 }

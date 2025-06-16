@@ -11,20 +11,16 @@ const getModel = () => {
   try {
     // Initialize models directly here to avoid module-level issues
     if (process.env.GROQ_API_KEY) {
-      console.log('[FIRESTARTER-QUERY] Using Groq model')
       return groq('meta-llama/llama-4-scout-17b-16e-instruct')
     }
     if (process.env.OPENAI_API_KEY) {
-      console.log('[FIRESTARTER-QUERY] Using OpenAI model')
       return openai('gpt-4o')
     }
     if (process.env.ANTHROPIC_API_KEY) {
-      console.log('[FIRESTARTER-QUERY] Using Anthropic model')
       return anthropic('claude-3-5-sonnet-20241022')
     }
     throw new Error('No AI provider configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY')
   } catch (error) {
-    console.error('[FIRESTARTER-QUERY] Error getting AI model:', error)
     throw error
   }
 }
@@ -51,8 +47,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[FIRESTARTER-QUERY] Namespace:', namespace)
-    console.log('[FIRESTARTER-QUERY] Query:', query)
     
     // Retrieve documents from Upstash Search
     interface SearchDocument {
@@ -75,7 +69,6 @@ export async function POST(request: NextRequest) {
     
     try {
       // Search for documents - include namespace to improve relevance
-      console.log('[FIRESTARTER-QUERY] Searching for documents with query:', query)
       
       // Include namespace in search to boost relevance
       const searchQuery = `${query} ${namespace}`
@@ -86,7 +79,6 @@ export async function POST(request: NextRequest) {
         reranking: true
       })
       
-      console.log('[FIRESTARTER-QUERY] Initial search found:', searchResults.length, 'results')
       
       // Filter to only include documents from the correct namespace
       documents = searchResults.filter((doc) => {
@@ -95,17 +87,14 @@ export async function POST(request: NextRequest) {
         if (!matches && doc.metadata?.namespace) {
           // Only log first few mismatches to avoid spam
           if (documents.length < 3) {
-            console.log('[FIRESTARTER-QUERY] Namespace mismatch:', doc.metadata.namespace, '!==', namespace)
           }
         }
         return matches
       })
       
-      console.log('[FIRESTARTER-QUERY] After namespace filter:', documents.length, 'documents')
       
       // If no results, try searching just for documents in this namespace
       if (documents.length === 0) {
-        console.log('[FIRESTARTER-QUERY] No results found, trying fallback search')
         
         const fallbackResults = await searchIndex.search({
           query: namespace,
@@ -113,14 +102,12 @@ export async function POST(request: NextRequest) {
           reranking: true
         })
         
-        console.log('[FIRESTARTER-QUERY] Fallback search found:', fallbackResults.length, 'results')
         
         // Filter for exact namespace match
         const namespaceDocs = fallbackResults.filter((doc) => {
           return doc.metadata?.namespace === namespace
         })
         
-        console.log('[FIRESTARTER-QUERY] Namespace documents found:', namespaceDocs.length)
         
         // If we found documents in the namespace, search within their content
         if (namespaceDocs.length > 0) {
@@ -136,7 +123,6 @@ export async function POST(request: NextRequest) {
                    url.includes(queryLower)
           })
           
-          console.log('[FIRESTARTER-QUERY] Content-filtered documents:', documents.length)
           
           // If still no results, return all namespace documents
           if (documents.length === 0) {
@@ -145,14 +131,13 @@ export async function POST(request: NextRequest) {
         }
       }
       
-    } catch (searchError) {
-      console.error('[FIRESTARTER-QUERY] Search failed:', searchError)
+    } catch {
+      console.error('Search failed')
       documents = []
     }
     
     // Check if we have any data for this namespace
     if (documents.length === 0) {
-      console.log('[FIRESTARTER-QUERY] No documents found for namespace:', namespace)
       
       const answer = `I don't have any indexed content for this website. Please make sure the website has been crawled first.`
       const sources: never[] = []
@@ -181,8 +166,7 @@ export async function POST(request: NextRequest) {
       if (!model) {
         throw new Error('No AI model available')
       }
-    } catch (modelError) {
-      console.error('[FIRESTARTER-QUERY] AI model error:', modelError)
+    } catch {
       const answer = 'AI service is not configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your environment variables.'
       return new Response(
         JSON.stringify({ answer, sources: [] }), 
@@ -208,14 +192,6 @@ export async function POST(request: NextRequest) {
       const rawContent = result.metadata?.fullContent || result.content?.text || ''
       
       if (!rawContent) {
-        console.warn('[FIRESTARTER-QUERY] Document has no content:', { 
-          url, 
-          title,
-          hasContent: !!result.content,
-          hasFullContent: !!result.metadata?.fullContent,
-          contentKeys: result.content ? Object.keys(result.content) : [],
-          metadataKeys: result.metadata ? Object.keys(result.metadata) : []
-        })
       }
       
       // Create structured content with clear metadata headers
@@ -240,7 +216,6 @@ ${rawContent}`
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, config.search.maxSourcesDisplay) // Get many more sources for better coverage
     
-    console.log('[FIRESTARTER-QUERY] Found relevant docs:', relevantDocs.length, 'from', transformedDocuments.length, 'total')
     
     // If no matches, use more documents as context
     const docsToUse = relevantDocs.length > 0 ? relevantDocs : transformedDocuments.slice(0, 10)
@@ -250,19 +225,12 @@ ${rawContent}`
     
     // Log document structure for debugging
     if (contextDocs.length > 0) {
-      console.log('[FIRESTARTER-QUERY] Sample document for context:', {
-        url: contextDocs[0].url,
-        title: contextDocs[0].title,
-        contentLength: contextDocs[0].content?.length || 0,
-        hasContent: !!contextDocs[0].content
-      })
     }
     
     const context = contextDocs
       .map((doc) => {
         const content = doc.content || ''
         if (!content) {
-          console.warn('[FIRESTARTER-QUERY] Empty content for doc:', doc.url)
           return null
         }
         return content.substring(0, config.search.maxContextLength) + '...'
@@ -270,12 +238,9 @@ ${rawContent}`
       .filter(Boolean)
       .join('\n\n---\n\n')
     
-    console.log('[FIRESTARTER-QUERY] Context length:', context.length, 'chars')
-    console.log('[FIRESTARTER-QUERY] Using', contextDocs.length, 'docs for context,', docsToUse.length, 'total sources')
     
     // If context is empty, log error
     if (!context || context.length < 100) {
-      console.error('[FIRESTARTER-QUERY] Context too short or empty!', { contextLength: context.length })
       
       const answer = 'I found some relevant pages but couldn\'t extract enough content to answer your question. This might be due to the way the pages were crawled. Try crawling the website again with a higher page limit.'
       const sources = docsToUse.map((doc) => ({
@@ -297,37 +262,23 @@ ${rawContent}`
       snippet: (doc.content || '').substring(0, config.search.snippetLength) + '...'
     }))
     
-    console.log('[FIRESTARTER-QUERY] Prepared sources:', sources.length, 'sources')
-    if (sources.length > 0) {
-      console.log('[FIRESTARTER-QUERY] First source:', JSON.stringify(sources[0], null, 2))
-    }
 
     // Generate response using Vercel AI SDK
     try {
-      console.log('[FIRESTARTER-QUERY] Calling Groq API...', { streaming: stream })
       
       const systemPrompt = config.ai.systemPrompt
 
       const userPrompt = `Question: ${query}\n\nRelevant content from the website:\n${context}\n\nPlease provide a comprehensive answer based on this information.`
 
-      console.log('[FIRESTARTER-QUERY] System prompt:', systemPrompt.substring(0, 100) + '...')
-      console.log('[FIRESTARTER-QUERY] User prompt length:', userPrompt.length)
-      console.log('[FIRESTARTER-QUERY] User prompt preview:', userPrompt.substring(0, 500) + '...')
       
       // Log a sample of the actual content being sent
-      if (contextDocs.length > 0) {
-        console.log('[FIRESTARTER-QUERY] First document full content preview:')
-        console.log(contextDocs[0].content.substring(0, 500) + '...')
-      }
 
 
       if (stream) {
-        console.log('[FIRESTARTER-QUERY] Starting streaming response')
         
         let result
         try {
           const model = getModel()
-          console.log('[FIRESTARTER-QUERY] Model initialized successfully')
           
           // Stream the response
           result = await streamText({
@@ -340,15 +291,11 @@ ${rawContent}`
             maxTokens: config.ai.maxTokens
           })
           
-          console.log('[FIRESTARTER-QUERY] Stream result created:', !!result)
         } catch (streamError) {
-          console.error('[FIRESTARTER-QUERY] Streaming error:', streamError)
           throw streamError
         }
         
         // Create a streaming response with sources
-        console.log('[FIRESTARTER-QUERY] Creating streaming response')
-        console.log('[FIRESTARTER-QUERY] Sources to send:', sources.length)
         
         // Always use custom streaming to include sources
         // The built-in toDataStreamResponse doesn't include our sources
@@ -359,21 +306,17 @@ ${rawContent}`
             // Send sources as initial data
             const sourcesData = { sources }
             const sourcesLine = `8:${JSON.stringify(sourcesData)}\n`
-            console.log('[FIRESTARTER-QUERY] Sending sources line:', sourcesLine)
             controller.enqueue(encoder.encode(sourcesLine))
             
             // Stream the text
             try {
-              let chunkCount = 0
               for await (const textPart of result.textStream) {
                 // Format as Vercel AI SDK expects
                 const escaped = JSON.stringify(textPart)
                 controller.enqueue(encoder.encode(`0:${escaped}\n`))
-                chunkCount++
               }
-              console.log('[FIRESTARTER-QUERY] Streamed', chunkCount, 'text chunks')
-            } catch (error) {
-              console.error('[FIRESTARTER-QUERY] Error in text stream:', error)
+            } catch {
+              console.error('Stream processing failed')
             }
             
             controller.close()
@@ -410,7 +353,6 @@ ${rawContent}`
       }
       
     } catch (groqError) {
-      console.error('[FIRESTARTER-QUERY] Groq API error:', groqError)
       
       const errorMessage = groqError instanceof Error ? groqError.message : 'Unknown error'
       let answer = `Error generating response: ${errorMessage}`
@@ -426,8 +368,8 @@ ${rawContent}`
         { headers: { 'Content-Type': 'application/json' } }
       )
     }
-  } catch (error) {
-    console.error('Error in firestarter query route:', error)
+  } catch {
+    console.error('Query processing failed')
     return new Response(
       JSON.stringify({ error: 'Failed to process query' }), 
       { status: 500, headers: { 'Content-Type': 'application/json' } }

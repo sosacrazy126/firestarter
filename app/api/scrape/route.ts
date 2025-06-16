@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
 
   } catch (error: unknown) {
-    console.error('Error in /api/scrape endpoint (SDK):', error);
     const err = error as ApiError;
     const errorStatus = typeof err.status === 'number' ? err.status : 500;
     return NextResponse.json({ success: false, error: 'An error occurred while processing your request. Please try again later.' }, { status: errorStatus });

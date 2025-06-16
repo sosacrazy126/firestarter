@@ -5,9 +5,9 @@ export async function GET() {
   try {
     const indexes = await getIndexes()
     return NextResponse.json({ indexes: indexes || [] })
-  } catch (error) {
-    console.error('Error fetching indexes:', error)
+  } catch {
     // Return empty array instead of error to allow app to function
+    console.error('Failed to get indexes')
     return NextResponse.json({ indexes: [] })
   }
 }
@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
     const index: IndexMetadata = await request.json()
     await saveIndex(index)
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Error saving index:', error)
+  } catch {
     // Return success anyway to allow app to continue
+    console.error('Failed to save index')
     return NextResponse.json({ success: true, warning: 'Index saved locally only' })
   }
 }
@@ -35,9 +35,9 @@ export async function DELETE(request: NextRequest) {
     
     await deleteIndex(namespace)
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Error deleting index:', error)
+  } catch {
     // Return success anyway to allow app to continue
+    console.error('Failed to delete index')
     return NextResponse.json({ success: true, warning: 'Index deleted locally only' })
   }
 }
