@@ -105,7 +105,7 @@ If the context doesn't contain enough information to answer the question, say so
   },
 
   features: {
-    enableCreation: process.env.FIRESTARTER_DISABLE_CREATION_DASHBOARD !== 'true',
+    enableCreation: process.env.DISABLE_CHATBOT_CREATION !== 'true',
     enableRedis: !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
     enableSearch: !!(process.env.UPSTASH_SEARCH_REST_URL && process.env.UPSTASH_SEARCH_REST_TOKEN),
   },

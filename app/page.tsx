@@ -61,7 +61,7 @@ export default function FirestarterPage() {
     fetch('/api/check-env')
       .then(res => res.json())
       .then(data => {
-        setIsCreationDisabled(data.environmentStatus.FIRESTARTER_DISABLE_CREATION_DASHBOARD || false);
+        setIsCreationDisabled(data.environmentStatus.DISABLE_CHATBOT_CREATION || false);
         
         // Check for Firecrawl API key
         const hasEnvFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
@@ -381,10 +381,10 @@ export default function FirestarterPage() {
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-8 text-center">
             <Lock className="h-12 w-12 text-orange-600 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-[#36322F] mb-2">
-              Dashboard Creation Disabled
+              Chatbot Creation Disabled
             </h2>
             <p className="text-gray-600 mb-6">
-              The dashboard for creation of chatbots has been disabled - only read-only access is available right now.
+              Chatbot creation has been disabled by the administrator. You can only view and interact with existing chatbots.
             </p>
             <div className="flex gap-4 justify-center">
               <Button

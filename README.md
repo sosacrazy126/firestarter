@@ -45,6 +45,9 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
    OPENAI_API_KEY=your_openai_key
    # ANTHROPIC_API_KEY=your_anthropic_key
    # GROQ_API_KEY=your_groq_key
+   
+   # Optional: Disable chatbot creation (for read-only deployments)
+   # DISABLE_CHATBOT_CREATION=true
    ```
 3. Install dependencies: `npm install` or `yarn install`
 4. Run the development server: `npm run dev` or `yarn dev`
@@ -178,8 +181,8 @@ const config = {
     // ...
   },
   features: {
-    // Public creation can be disabled for hosted read-only demos
-    enableCreation: process.env.FIRESTARTER_DISABLE_CREATION_DASHBOARD !== 'true',
+    // Chatbot creation can be disabled for read-only deployments
+    enableCreation: process.env.DISABLE_CHATBOT_CREATION !== 'true',
   },
   // ...
 }

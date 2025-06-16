@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
     console.log('[FIRESTARTER-CREATE] Reading request body...')
     // Check if creation is disabled
     if (!config.features.enableCreation) {
-      console.log('[FIRESTARTER-CREATE] Creation is disabled via configuration')
+      console.log('[FIRESTARTER-CREATE] Creation is disabled via DISABLE_CHATBOT_CREATION environment variable')
       return NextResponse.json({ 
-        error: 'Dashboard creation is disabled for Firestarter.' 
+        error: 'Chatbot creation is currently disabled. You can only view existing chatbots.' 
       }, { status: 403 })
     }
 
