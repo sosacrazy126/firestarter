@@ -14,7 +14,7 @@ Instantly create a knowledgeable AI chatbot for any website. Firestarter crawls 
 - **Next.js 15**: Modern React framework with App Router
 - **Groq, OpenAI, Anthropic**: Flexible LLM provider support
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmendableai%2Ffirestarter&env=FIRECRAWL_API_KEY,UPSTASH_SEARCH_REST_URL,UPSTASH_SEARCH_REST_TOKEN,GROQ_API_KEY&envDescription=API%20keys%20for%20Firecrawl,%20Upstash,%20and%20an%20LLM%20provider%20are%20required.&envLink=https%3A%2F%2Fgithub.com%2Fmendableai%2Ffirestarter%23required-api-keys)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmendableai%2Ffirestarter&env=FIRECRAWL_API_KEY,UPSTASH_SEARCH_REST_URL,UPSTASH_SEARCH_REST_TOKEN,OPENAI_API_KEY&envDescription=API%20keys%20for%20Firecrawl,%20Upstash,%20and%20OpenAI%20are%20required.&envLink=https%3A%2F%2Fgithub.com%2Fmendableai%2Ffirestarter%23required-api-keys)
 
 ## Setup
 
@@ -26,8 +26,8 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
 | ---------------- | ------------------------------------- | -------------------------------------------- |
 | Firecrawl        | Web scraping and content aggregation  | [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys) |
 | Upstash          | Vector DB for semantic search         | [console.upstash.com](https://console.upstash.com) |
-| Groq             | High-speed LLM inference              | [console.groq.com/keys](https://console.groq.com/keys) |
-| OpenAI           | Alternative LLM provider              | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| OpenAI           | AI model provider (default)          | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Groq             | Alternative LLM provider              | [console.groq.com/keys](https://console.groq.com/keys) |
 | Anthropic        | Alternative LLM provider              | [console.anthropic.com/dashboard](https://console.anthropic.com/dashboard) |
 
 ### Quick Start
@@ -41,8 +41,10 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
    UPSTASH_SEARCH_REST_URL=your_upstash_search_url
    UPSTASH_SEARCH_REST_TOKEN=your_upstash_search_token
    
-   # Choose at least one LLM Provider (the first one found will be used)
+   # OpenAI API Key (default provider)
    OPENAI_API_KEY=your_openai_key
+   
+   # Optional: Alternative LLM providers
    # ANTHROPIC_API_KEY=your_anthropic_key
    # GROQ_API_KEY=your_groq_key
    
