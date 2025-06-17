@@ -915,12 +915,14 @@ print(data['choices'][0]['message']['content'])`
             <Button
               variant="code"
               onClick={() => setShowDeleteModal(false)}
+              className="font-medium"
             >
               Cancel
             </Button>
             <Button
               variant="orange"
               onClick={handleDelete}
+              className="font-medium"
             >
               Delete
             </Button>

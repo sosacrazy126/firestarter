@@ -39,7 +39,7 @@ export default function FirestarterPage() {
   const urlParam = searchParams.get('url');
   const { saveIndex } = useStorage();
   
-  const [url, setUrl] = useState(urlParam || 'https://firecrawl.dev');
+  const [url, setUrl] = useState(urlParam || 'https://docs.firecrawl.dev/');
   const [hasInteracted, setHasInteracted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -430,7 +430,7 @@ export default function FirestarterPage() {
                     setHasInteracted(true);
                   }}
                   onFocus={() => {
-                    if (!hasInteracted && url === 'https://firecrawl.dev') {
+                    if (!hasInteracted && url === 'https://docs.firecrawl.dev/') {
                       setUrl('');
                       setHasInteracted(true);
                     }
@@ -680,16 +680,18 @@ export default function FirestarterPage() {
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
+              variant="code"
               onClick={() => setShowApiKeyModal(false)}
               disabled={isValidatingApiKey}
+              className="font-medium"
             >
               Cancel
             </Button>
             <Button
               onClick={handleApiKeySubmit}
               disabled={isValidatingApiKey || !firecrawlApiKey.trim()}
-              variant="default"
+              variant="orange"
+              className="font-medium"
             >
               {isValidatingApiKey ? (
                 <>
