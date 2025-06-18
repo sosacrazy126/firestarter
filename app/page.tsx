@@ -545,7 +545,7 @@ export default function FirestarterPage() {
                         type="range"
                         min={config.crawling.minLimit}
                         max={config.crawling.maxLimit}
-                        step="10"
+                        step="5"
                         value={pageLimit}
                         onChange={(e) => setPageLimit(parseInt(e.target.value))}
                         className="flex-1 accent-orange-500"
