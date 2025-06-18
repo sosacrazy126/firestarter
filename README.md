@@ -27,8 +27,6 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
 | Firecrawl        | Web scraping and content aggregation  | [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys) |
 | Upstash          | Vector DB for semantic search         | [console.upstash.com](https://console.upstash.com) |
 | OpenAI           | AI model provider (default)          | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Groq             | Alternative LLM provider              | [console.groq.com/keys](https://console.groq.com/keys) |
-| Anthropic        | Alternative LLM provider              | [console.anthropic.com/dashboard](https://console.anthropic.com/dashboard) |
 
 ### Quick Start
 
@@ -43,10 +41,6 @@ You need a key from Firecrawl, Upstash, and at least one LLM provider.
    
    # OpenAI API Key (default provider)
    OPENAI_API_KEY=your_openai_key
-   
-   # Optional: Alternative LLM providers
-   # ANTHROPIC_API_KEY=your_anthropic_key
-   # GROQ_API_KEY=your_groq_key
    
    # Optional: Disable chatbot creation (for read-only deployments)
    # DISABLE_CHATBOT_CREATION=true
