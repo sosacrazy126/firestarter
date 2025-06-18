@@ -214,6 +214,21 @@ function DashboardContent() {
   const [showApiModal, setShowApiModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'curl' | 'javascript' | 'python' | 'openai-js' | 'openai-python'>('curl')
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
+
+  useEffect(() => {
+    const el = scrollAreaRef.current
+    if (!el) return
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el
+      const atBottom = scrollHeight - scrollTop - clientHeight < 20
+      setAutoScroll(atBottom)
+    }
+    el.addEventListener('scroll', handleScroll)
+    return () => {
+      el.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -377,7 +392,7 @@ function DashboardContent() {
   }, [router, searchParams])
 
   const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
+    if (scrollAreaRef.current && autoScroll) {
       scrollAreaRef.current.scrollTo({
         top: scrollAreaRef.current.scrollHeight,
         behavior: 'smooth'
