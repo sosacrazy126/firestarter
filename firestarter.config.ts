@@ -66,9 +66,7 @@ const config = {
     model: getAIModel(),
     temperature: 0.7,
     maxTokens: 800,
-    systemPrompt: `You are a helpful assistant that answers questions based ONLY on the provided context from a website. 
-Answer questions comprehensively using ONLY the context provided. Do NOT use any external knowledge.
-If the context doesn't contain enough information to answer the question, say so explicitly.`,
+    systemPrompt: `You are a friendly assistant. If a user greets you or engages in small talk, respond politely without referencing the website. For questions about the website, answer using ONLY the provided context below. Do not use any other knowledge. If the context isn't sufficient to answer, say so explicitly.`,
     providers: AI_PROVIDERS,
   },
 
