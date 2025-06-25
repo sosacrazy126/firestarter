@@ -3,6 +3,7 @@ import { streamText } from 'ai'
 import { groq } from '@ai-sdk/groq'
 import { openai } from '@ai-sdk/openai'
 import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { searchIndex } from '@/lib/upstash-search'
 import { serverConfig as config } from '@/firestarter.config'
 
@@ -10,16 +11,19 @@ import { serverConfig as config } from '@/firestarter.config'
 const getModel = () => {
   try {
     // Initialize models directly here to avoid module-level issues
-    if (process.env.GROQ_API_KEY) {
-      return groq('meta-llama/llama-4-scout-17b-16e-instruct')
-    }
     if (process.env.OPENAI_API_KEY) {
       return openai('gpt-4o')
     }
     if (process.env.ANTHROPIC_API_KEY) {
       return anthropic('claude-3-5-sonnet-20241022')
     }
-    throw new Error('No AI provider configured. Please set GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY')
+    if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
+      return google('gemini-2.0-flash-exp')
+    }
+    if (process.env.GROQ_API_KEY) {
+      return groq('meta-llama/llama-4-scout-17b-16e-instruct')
+    }
+    throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_STUDIO_API_KEY, or GROQ_API_KEY')
   } catch (error) {
     throw error
   }

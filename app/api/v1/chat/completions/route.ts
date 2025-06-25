@@ -8,7 +8,7 @@ export async function OPTIONS() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Use-Groq, X-Use-OpenAI',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Use-Groq, X-Use-OpenAI, X-Use-Google',
       'Access-Control-Max-Age': '86400',
     },
   })
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     // Check if this is a Groq API request
     const useGroq = request.headers.get('X-Use-Groq') === 'true'
     const useOpenAI = request.headers.get('X-Use-OpenAI') === 'true'
+    const useGoogle = request.headers.get('X-Use-Google') === 'true'
     
     if (useGroq) {
       // Handle Groq API request
@@ -194,6 +195,121 @@ export async function POST(request: NextRequest) {
           'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Use-Groq, X-Use-OpenAI',
         }
       })
+    }
+    
+    /* ------------------------------------------------------------------
+     * Google AI Studio (Gemini) branch
+     * ------------------------------------------------------------------ */
+    if (useGoogle) {
+      const googleApiKey = process.env.GOOGLE_AI_STUDIO_API_KEY
+
+      if (!googleApiKey) {
+        return NextResponse.json(
+          {
+            error: {
+              message: 'Google AI Studio API key not configured',
+              type: 'server_error',
+              code: 500,
+            },
+          },
+          { status: 500 },
+        )
+      }
+
+      /* Helper: convert OpenAI-style messages to Gemini `contents` */
+      const convertMessages = (msgs: any[]) =>
+        msgs.map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        }))
+
+      const endpointBase =
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp'
+
+      // Build request body
+      const googleBody: Record<string, any> = {
+        contents: convertMessages(messages),
+        generationConfig: {
+          temperature: body.temperature ?? config.ai.temperature,
+          maxOutputTokens: body.max_tokens ?? 2000,
+        },
+      }
+
+      /* -------- streaming -------- */
+      if (stream) {
+        const res = await fetch(
+          `${endpointBase}:streamGenerateContent?key=${googleApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(googleBody),
+          },
+        )
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(
+            errorData.error?.message || 'Google AI Studio API error',
+          )
+        }
+
+        // Gemini already streams SSE; relay it
+        return new Response(res.body, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          },
+        })
+      }
+
+      /* -------- non-streaming -------- */
+      const res = await fetch(
+        `${endpointBase}:generateContent?key=${googleApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(googleBody),
+        },
+      )
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(
+          errorData.error?.message || 'Google AI Studio API error',
+        )
+      }
+
+      const data = await res.json()
+      const text =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ??
+        '(no response from model)'
+
+      // Return in OpenAI-compatible format for clients
+      return NextResponse.json(
+        {
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: 'gemini-2.0-flash-exp',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: text },
+              finish_reason: 'stop',
+            },
+          ],
+        },
+        {
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers':
+              'Content-Type, Authorization, X-Use-Groq, X-Use-OpenAI, X-Use-Google',
+          },
+        },
+      )
     }
     
     // Original Firecrawl namespace logic
