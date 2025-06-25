@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
      * Google AI Studio (Gemini) branch
      * ------------------------------------------------------------------ */
     if (useGoogle) {
-      const googleApiKey = process.env.GOOGLE_AI_STUDIO_API_KEY
+      const googleApiKey = process.env.GEMINI_API_KEY
 
       if (!googleApiKey) {
         return NextResponse.json(
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
         }))
 
       const endpointBase =
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp'
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash'
 
       // Build request body
       const googleBody: Record<string, any> = {
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
           id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion',
           created: Math.floor(Date.now() / 1000),
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-2.5-flash',
           choices: [
             {
               index: 0,

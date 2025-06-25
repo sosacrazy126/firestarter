@@ -20,8 +20,8 @@ const AI_PROVIDERS = {
     enabled: !!process.env.ANTHROPIC_API_KEY,
   },
   google: {
-    model: google('gemini-2.0-flash-exp'),
-    enabled: !!process.env.GOOGLE_AI_STUDIO_API_KEY,
+    model: google('gemini-2.5-flash'),
+    enabled: !!process.env.GEMINI_API_KEY,
   },
 }
 
@@ -36,7 +36,7 @@ function getAIModel() {
   if (AI_PROVIDERS.anthropic.enabled) return AI_PROVIDERS.anthropic.model
   if (AI_PROVIDERS.google.enabled) return AI_PROVIDERS.google.model
   if (AI_PROVIDERS.groq.enabled) return AI_PROVIDERS.groq.model
-  throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_STUDIO_API_KEY, or GROQ_API_KEY')
+  throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or GROQ_API_KEY')
 }
 
 // Rate limiter factory

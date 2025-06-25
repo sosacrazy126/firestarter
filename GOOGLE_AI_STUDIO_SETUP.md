@@ -9,7 +9,7 @@ Welcome! This document walks you through enabling and using Google AI Studio’s
 
 | Requirement | Why | Link |
 |-------------|-----|------|
-| Google AI Studio API key (`GOOGLE_AI_STUDIO_API_KEY`) | Authenticates requests to Gemini models | https://makersuite.google.com/app/apikey |
+| Gemini API key (`GEMINI_API_KEY`) | Authenticates requests to Gemini models | https://makersuite.google.com/app/apikey |
 | At least one other provider key (optional) | For automatic fallback (OpenAI → Anthropic → Google → Groq) | Respective dashboards |
 | Firestarter ≥ commit `gemini-integration` | Contains the new provider code | — |
 | Node ≥ 18 & bun/pnpm install completed | Builds Firestarter | — |
@@ -28,7 +28,7 @@ Welcome! This document walks you through enabling and using Google AI Studio’s
    Add the following to your `.env` (or create `.env.local`):
 
    ```
-   GOOGLE_AI_STUDIO_API_KEY=AIza****************************************
+   GEMINI_API_KEY=AIza****************************************
    ```
 
    Optional: copy from `.env.example`.
@@ -42,8 +42,8 @@ Welcome! This document walks you through enabling and using Google AI Studio’s
    const AI_PROVIDERS = {
      ...
      google: {
-       model: google('gemini-2.0-flash-exp'),
-       enabled: !!process.env.GOOGLE_AI_STUDIO_API_KEY,
+       model: google('gemini-2.5-flash'),
+       enabled: !!process.env.GEMINI_API_KEY,
      },
    }
    ```
@@ -56,7 +56,7 @@ Welcome! This document walks you through enabling and using Google AI Studio’s
    curl http://localhost:3000/api/check-env
    ```
 
-   Successful output should contain `"GOOGLE_AI_STUDIO_API_KEY": true`.
+   Successful output should contain `"GEMINI_API_KEY": true`.
 
 ---
 
@@ -96,7 +96,7 @@ No special header needed; the global provider resolver picks Gemini automaticall
 
 1. `OPENAI_API_KEY` **not** set  
 2. `ANTHROPIC_API_KEY` **not** set  
-3. `GOOGLE_AI_STUDIO_API_KEY` **is** set  
+3. `GEMINI_API_KEY` **is** set  
 
 Body example:
 
@@ -114,7 +114,7 @@ Body example:
 
 | Feature | Implementation |
 |---------|----------------|
-| Model ID | `gemini-2.0-flash-exp` (default) |
+| Model ID | `gemini-2.5-flash` (default) |
 | Streaming | Relays Google’s native SSE stream directly |
 | Temperature / Max tokens | Inherited from request body or `firestarter.config.ts` |
 | Fallback chain | OpenAI → Anthropic → **Google** → Groq |
@@ -126,7 +126,7 @@ Body example:
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| `500 server_error` with message “Google AI Studio API key not configured” | ENV var missing / wrong | Add `GOOGLE_AI_STUDIO_API_KEY` and restart |
+| `500 server_error` with message “Gemini API key not configured” | ENV var missing / wrong | Add `GEMINI_API_KEY` and restart |
 | `Google AI Studio API error` with `403` | Invalid / expired key | Regenerate key in MakerSuite |
 | Empty response text | Model quota exhausted | Check usage limits in Google Cloud console |
 | Provider ignored, falls back to Groq | Header missing or higher-priority key present | Ensure `X-Use-Google: true` **and** unset conflicting keys if testing |
@@ -155,7 +155,7 @@ To switch to a different Gemini model (e.g., `gemini-2.5-pro`):
 ```ts
 google: {
   model: google('gemini-2.5-pro'),
-  enabled: !!process.env.GOOGLE_AI_STUDIO_API_KEY,
+  enabled: !!process.env.GEMINI_API_KEY,
 },
 ```
 

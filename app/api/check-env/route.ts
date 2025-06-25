@@ -5,7 +5,7 @@ export async function GET() {
     FIRECRAWL_API_KEY: !!process.env.FIRECRAWL_API_KEY,
     OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
     ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
-    GOOGLE_AI_STUDIO_API_KEY: !!process.env.GOOGLE_AI_STUDIO_API_KEY,
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
     GROQ_API_KEY: !!process.env.GROQ_API_KEY,
     DISABLE_CHATBOT_CREATION: process.env.DISABLE_CHATBOT_CREATION === 'true',
   };

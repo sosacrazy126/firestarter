@@ -17,13 +17,13 @@ const getModel = () => {
     if (process.env.ANTHROPIC_API_KEY) {
       return anthropic('claude-3-5-sonnet-20241022')
     }
-    if (process.env.GOOGLE_AI_STUDIO_API_KEY) {
-      return google('gemini-2.0-flash-exp')
+    if (process.env.GEMINI_API_KEY) {
+      return google('gemini-2.5-flash')
     }
     if (process.env.GROQ_API_KEY) {
       return groq('meta-llama/llama-4-scout-17b-16e-instruct')
     }
-    throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_STUDIO_API_KEY, or GROQ_API_KEY')
+    throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or GROQ_API_KEY')
   } catch (error) {
     throw error
   }
